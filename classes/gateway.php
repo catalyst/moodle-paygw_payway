@@ -87,23 +87,22 @@ class gateway extends \core_payment\gateway {
         array &$errors
     ): void {
         // Check environment is one the enums values.
-        try {
-            environment::from($data->environment);
-        } catch (ValueError $e) {
+        if (environment::tryFrom($data->environment) === null) {
             $errors['environment'] = get_string('error:environment', 'paygw_payway');
         }
 
         // Check key formatting is good for both keys.
-        try {
-            api_credential::parse_and_validate_key_name($data->secretkey, api_credential::TYPE_SECRET);
-        } catch (coding_exception $e) {
-            // Use $e->a (the raw hint) rather than getMessage(), which has a "coding error" prefix.
-            $errors['secretkey'] = get_string('error:invalidkey', 'paygw_payway', $e->a);
+        $secretkeyvalidation = api_credential::parse_and_validate_key_name($data->secretkey, api_credential::TYPE_SECRET);
+        if ($secretkeyvalidation->is_err()) {
+            $errors['secretkey'] = get_string('error:invalidkey', 'paygw_payway', $secretkeyvalidation->error);
         }
-        try {
-            api_credential::parse_and_validate_key_name($data->publishablekey, api_credential::TYPE_PUBLISHABLE);
-        } catch (coding_exception $e) {
-            $errors['publishablekey'] = get_string('error:invalidkey', 'paygw_payway', $e->a);
+
+        $publishablekeyverification = api_credential::parse_and_validate_key_name(
+            $data->publishablekey,
+            api_credential::TYPE_PUBLISHABLE
+        );
+        if ($publishablekeyverification->is_err()) {
+            $errors['publishablekey'] = get_string('error:invalidkey', 'paygw_payway', $publishablekeyverification->error);
         }
     }
 }

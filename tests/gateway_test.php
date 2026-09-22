@@ -36,7 +36,18 @@ final class gateway_test extends advanced_testcase {
      * @return account_gateway
      */
     private function get_stub_form(): account_gateway {
+        /**
+         * Stub account gateway
+         *
+         * @package    paygw_payway
+         * @copyright  2026 Catalyst IT Australia
+         * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
+         * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+         */
         return new class extends account_gateway {
+            /**
+             * Construct
+             */
             public function __construct() {
             }
         };

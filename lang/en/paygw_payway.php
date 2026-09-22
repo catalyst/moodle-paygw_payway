@@ -25,6 +25,7 @@
 
 $string['checksecret_key'] = 'Secret key check';
 $string['connectiontest'] = 'HTTP {$a->status} response returned from PayWay API using secret key {$a->keyname}';
+$string['connectiontestcannotparse'] = 'Unexpected key format ';
 $string['connectiontestunknown'] = 'Unknown error during connection test: {$a}';
 $string['environment'] = 'Environment';
 $string['environment:live'] = 'Live';

@@ -53,16 +53,16 @@ class api_credential {
      * Given a key, validate the structure and return the key name
      * @param string $key
      * @param string|null $expectedtype if provided, checks the key's type segment matches this (e.g. self::TYPE_SECRET)
-     * @return string key name -  in format APPLICATION_TYPE...LAST3CHARS
+     * @return result result containing key name -  in format APPLICATION_TYPE...LAST3CHARS, else error message
      * This is what is used in the PayWay interface to identify keys.
      */
-    public static function parse_and_validate_key_name(string $key, ?string $expectedtype = null): string {
+    public static function parse_and_validate_key_name(string $key, ?string $expectedtype = null): result {
         $parts = explode('_', $key);
         if (count($parts) != 3) {
-            throw new coding_exception("Unexpected key format, expected 3 parts separated by underscores");
+            return result::err("Unexpected key format, expected 3 parts separated by underscores");
         }
         if (strlen($parts[2]) <= 3) {
-            throw new coding_exception("Unexpected length of random part of key, expected > 3 chars");
+            return result::err("Unexpected length of random part of key, expected > 3 chars");
         }
 
         $application = $parts[0];
@@ -70,10 +70,10 @@ class api_credential {
         $last3chars = substr($parts[2], -3);
 
         if ($expectedtype !== null && strtoupper($type) !== strtoupper($expectedtype)) {
-            throw new coding_exception("Unexpected key type, expected {$expectedtype} but got {$type}");
+            return result::err("Unexpected key type, expected {$expectedtype} but got {$type}");
         }
 
-        return $application . '_' . $type . '...' . $last3chars;
+        return result::ok($application . '_' . $type . '...' . $last3chars);
     }
 
     /**

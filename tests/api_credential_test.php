@@ -37,7 +37,10 @@ final class api_credential_test extends advanced_testcase {
      * @return void
      */
     public function test_parse_and_validate_key_name_accepts_valid_key(): void {
-        $this->assertSame('APPLICATION_SECRET...abc', api_credential::parse_and_validate_key_name('APPLICATION_SECRET_xyzabc'));
+        $result = api_credential::parse_and_validate_key_name('APPLICATION_SECRET_xyzabc');
+
+        $this->assertTrue($result->is_ok());
+        $this->assertSame('APPLICATION_SECRET...abc', $result->value);
     }
 
     /**
@@ -46,8 +49,10 @@ final class api_credential_test extends advanced_testcase {
      * @return void
      */
     public function test_parse_and_validate_key_name_rejects_missing_sections(): void {
-        $this->expectException(coding_exception::class);
-        api_credential::parse_and_validate_key_name('APPLICATION_SECRET');
+        $result = api_credential::parse_and_validate_key_name('APPLICATION_SECRET');
+
+        $this->assertTrue($result->is_err());
+        $this->assertSame('Unexpected key format, expected 3 parts separated by underscores', $result->error);
     }
 
     /**
@@ -56,8 +61,10 @@ final class api_credential_test extends advanced_testcase {
      * @return void
      */
     public function test_parse_and_validate_key_name_rejects_short_suffix(): void {
-        $this->expectException(coding_exception::class);
-        api_credential::parse_and_validate_key_name('APPLICATION_SECRET_abc');
+        $result = api_credential::parse_and_validate_key_name('APPLICATION_SECRET_abc');
+
+        $this->assertTrue($result->is_err());
+        $this->assertSame('Unexpected length of random part of key, expected > 3 chars', $result->error);
     }
 
     /**
@@ -66,8 +73,10 @@ final class api_credential_test extends advanced_testcase {
      * @return void
      */
     public function test_parse_and_validate_key_name_rejects_mismatched_type(): void {
-        $this->expectException(coding_exception::class);
-        api_credential::parse_and_validate_key_name('APPLICATION_PUB_xyzabc', api_credential::TYPE_SECRET);
+        $result = api_credential::parse_and_validate_key_name('APPLICATION_PUB_xyzabc', api_credential::TYPE_SECRET);
+
+        $this->assertTrue($result->is_err());
+        $this->assertSame('Unexpected key type, expected SEC but got PUB', $result->error);
     }
 
     /**
@@ -76,10 +85,10 @@ final class api_credential_test extends advanced_testcase {
      * @return void
      */
     public function test_parse_and_validate_key_name_accepts_matching_type(): void {
-        $this->assertSame(
-            'APPLICATION_SEC...abc',
-            api_credential::parse_and_validate_key_name('APPLICATION_SEC_xyzabc', api_credential::TYPE_SECRET)
-        );
+        $result = api_credential::parse_and_validate_key_name('APPLICATION_SEC_xyzabc', api_credential::TYPE_SECRET);
+
+        $this->assertTrue($result->is_ok());
+        $this->assertSame('APPLICATION_SEC...abc', $result->value);
     }
 
     /**

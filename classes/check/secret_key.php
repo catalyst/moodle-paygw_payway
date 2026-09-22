@@ -65,19 +65,35 @@ class secret_key extends check {
      * @return result
      */
     public function get_result(): result {
+        $statuscode = result::UNKNOWN;
+        $message = '';
+
         try {
             $api = payway_api::new($this->credential);
-            $keyname = api_credential::parse_and_validate_key_name($this->credential->secretkey, api_credential::TYPE_SECRET);
-            $status = $api->test_secret_key();
 
-            // Ok if 200, else warning if not enabled or error if is enabled.
-            $resultcode = $status == 200 ? result::OK : ($this->gatewayenabled ? result::ERROR : result::WARNING);
-            return new result(
-                $resultcode,
-                get_string('connectiontest', 'paygw_payway', ['status' => $status, 'keyname' => $keyname])
-            );
+            // Check key formatting while parsing key name.
+            $keynameresult = api_credential::parse_and_validate_key_name($this->credential->secretkey, api_credential::TYPE_SECRET);
+
+            // Failed to parse, bad format.
+            if ($keynameresult->is_err()) {
+                $statuscode = $this->gatewayenabled ? result::ERROR : result::WARNING;
+                $message = get_string('connectiontestcannotparse', 'paygw_payway') . $keynameresult->error;
+            }
+
+            // Parsed ok, test it.
+            if ($keynameresult->is_ok()) {
+                $status = $api->test_secret_key();
+
+                // Ok if 200, else warning if not enabled or error if is enabled.
+                $statuscode = $status == 200 ? result::OK : ($this->gatewayenabled ? result::ERROR : result::WARNING);
+                $message = get_string('connectiontest', 'paygw_payway', ['status' => $status, 'keyname' => $keynameresult->value]);
+            }
         } catch (Throwable $e) {
-            return new result(result::UNKNOWN, get_string('connectiontestunknown', 'paygw_payway', $e->getMessage()));
+            // Catch-all to not blow up check api status page, in case of any exception.
+            $statuscode = result::UNKNOWN;
+            $message = get_string('connectiontestunknown', 'paygw_payway', $e->getMessage());
         }
+
+        return new result($statuscode, $message);
     }
 }
