@@ -1,4 +1,3 @@
-<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -15,16 +14,33 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information
+ * PayWay repository module to encapsulate all of the AJAX requests that can be sent for PayWay.
  *
- * @package    paygw_payway
+ * @module     paygw_payway/repository
  * @copyright  2026 Catalyst IT Australia
  * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+import Ajax from 'core/ajax';
 
-$plugin->version   = 2026092201;
-$plugin->requires  = 2024100700; // 4.5.
-$plugin->component = 'paygw_payway';
+/**
+ * Return the PayWay publishable key config for use with payway.js.
+ *
+ * @param {string} component Name of the component that the itemId belongs to
+ * @param {string} paymentArea The area of the component that the itemId belongs to
+ * @param {number} itemId An internal identifier that is used by the component
+ * @returns {Promise<{publishablekey: string}>}
+ */
+export const getConfigForJs = (component, paymentArea, itemId) => {
+    const request = {
+        methodname: 'paygw_payway_get_config_for_js',
+        args: {
+            component,
+            paymentarea: paymentArea,
+            itemid: itemId,
+        },
+    };
+
+    return Ajax.call([request])[0];
+};

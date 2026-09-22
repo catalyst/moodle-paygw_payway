@@ -42,3 +42,5 @@ $string['publishablekeystatuscheck'] = 'Note - There is currently no way to vali
 $string['secretkey'] = 'Secret API key';
 $string['secretkey_help'] = 'Your secret API key allows your server to process payments and provides full access to the API. It is usually in the form TXXXXX_SEC_xxxx';
 $string['secretkeystatuscheck'] = '<a href="/report/status/index.php?detail=paygw_payway_secret_key">Check secret key validation.</a>';
+$string['gatewayname'] = 'PayWay';
+$string['gatewaydescription'] = 'Pay using your credit card using Westpac PayWay';

@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information
+ * External functions and service definitions for the PayWay payment gateway plugin.
  *
  * @package    paygw_payway
  * @copyright  2026 Catalyst IT Australia
@@ -25,6 +25,12 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026092201;
-$plugin->requires  = 2024100700; // 4.5.
-$plugin->component = 'paygw_payway';
+$functions = [
+    'paygw_payway_get_config_for_js' => [
+        'classname'   => 'paygw_payway\external\get_config_for_js',
+        'classpath'   => '',
+        'description' => 'Returns the configuration settings to be used in js',
+        'type'        => 'read',
+        'ajax'        => true,
+    ],
+];
