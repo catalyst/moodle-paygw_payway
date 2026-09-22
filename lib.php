@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information
+ * Lib functions
  *
  * @package    paygw_payway
  * @copyright  2026 Catalyst IT Australia
@@ -23,8 +23,27 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+use paygw_payway\check\secret_key;
+use paygw_payway\local\api_credential;
 
-$plugin->version   = 2026092101;
-$plugin->requires  = 2024100700; // 4.5.
-$plugin->component = 'paygw_payway';
+/**
+ * Return check API status checks
+ * @return array
+ */
+function paygw_payway_status_checks(): array {
+    global $DB;
+
+    // There are likely to be only a handful of gateways on a given site,
+    // so its ok to query them all at once here.
+    $gateways = $DB->get_records('payment_gateways', ['gateway' => 'payway'], 'id, enabled, config');
+    $checks = array_map(function ($gateway) {
+        try {
+            return new secret_key($gateway->id, $gateway->enabled, api_credential::from_stored_config($gateway->config));
+        } catch (Throwable $e) {
+            // Skip gateways with corrupt/legacy config rather than breaking the whole status check listing.
+            return null;
+        }
+    }, $gateways);
+
+    return array_values(array_filter($checks));
+}

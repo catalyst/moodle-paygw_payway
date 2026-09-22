@@ -14,17 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+namespace paygw_payway\local;
+
 /**
- * Version information
+ * Environment
  *
  * @package    paygw_payway
  * @copyright  2026 Catalyst IT Australia
  * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
-defined('MOODLE_INTERNAL') || die();
-
-$plugin->version   = 2026092101;
-$plugin->requires  = 2024100700; // 4.5.
-$plugin->component = 'paygw_payway';
+enum environment: string {
+    case Live = 'live';
+    case Sandbox = 'sandbox';
+}

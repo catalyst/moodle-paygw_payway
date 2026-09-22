@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information
+ * Settings
  *
  * @package    paygw_payway
  * @copyright  2026 Catalyst IT Australia
@@ -25,6 +25,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026092101;
-$plugin->requires  = 2024100700; // 4.5.
-$plugin->component = 'paygw_payway';
+if ($ADMIN->fulltree) {
+    $settings->add(new admin_setting_heading('paygw_payway_settings', '', get_string('pluginname', 'paygw_payway')));
+
+    \core_payment\helper::add_common_gateway_settings($settings, 'paygw_payway');
+}
