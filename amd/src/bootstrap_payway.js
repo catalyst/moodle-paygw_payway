@@ -44,9 +44,3 @@ export const bootstrap_payway = () => {
         document.head.appendChild(script);
     });
 };
-
-export const create_payway_creditcard_div = (parentElement) => {
-    const div = document.createElement('div');
-    div.id = 'payway-credit-card';
-    parentElement.appendChild(div);
-}

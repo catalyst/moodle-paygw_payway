@@ -1,0 +1,51 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template paygw_payway/payway_creditcard_modal
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * none
+
+    Context variables required for this template:
+    * sandbox bool True if the gateway is configured to use the sandbox environment
+    * description string The course/item title being paid for
+    * cost float The amount to be paid
+    * currency string The currency of the amount to be paid, lowercase
+
+    Example context (json):
+    {"sandbox": false, "description": "Introduction to Moodle", "cost": 5.00, "currency": "aud"}
+
+}}
+<div class="mx-auto text-left" style="max-width: 400px;">
+    <p class="mb-1"><strong>{{#str}} orderdetails, paygw_payway {{/str}}</strong></p>
+    <p> {{description}}: ${{cost}} {{currency}}</p>
+</div>
+{{#sandbox}}
+<div class="alert alert-info" role="alert">
+    {{#str}} sandboxhint, paygw_payway {{/str}}
+</div>
+{{/sandbox}}
+<div class="mx-auto" style="max-width: 400px;">
+    <div id="payway-credit-card" class="d-flex justify-content-center" style="margin-bottom: 14px;"></div>
+    <div id="payway-cc-error" class="alert alert-danger" role="alert" style="display: none;"></div>
+    <button id="payway-cc-submit" type="button" class="btn btn-primary btn-lg btn-block" disabled="true">
+        {{#str}} pay, paygw_payway {{/str}}
+    </button>
+</div>

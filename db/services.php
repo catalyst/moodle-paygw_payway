@@ -33,4 +33,11 @@ $functions = [
         'type'        => 'read',
         'ajax'        => true,
     ],
+    'paygw_payway_process_payment' => [
+        'classname'   => 'paygw_payway\external\process_payment',
+        'classpath'   => '',
+        'description' => 'Processes a PayWay single-use token and completes the payment',
+        'type'        => 'write',
+        'ajax'        => true,
+    ],
 ];

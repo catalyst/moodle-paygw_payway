@@ -13,8 +13,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-import { bootstrap_payway, create_payway_creditcard_div } from "./bootstrap_payway";
-import { getConfigForJs } from "./repository";
+import { bootstrap_payway } from "./bootstrap_payway";
+import { getConfigForJs, processPayment } from "./repository";
+import Templates from 'core/templates';
+import Modal from 'core/modal';
+import { getString } from 'core/str';
 
 /**
  * PayWay Modal functions
@@ -26,6 +29,53 @@ import { getConfigForJs } from "./repository";
  */
 
 /**
+ * Creates and shows a modal that contains a loading placeholder.
+ *
+ * @returns {Promise<Modal>}
+ */
+const showModalWithLoadingPlaceholder = async() => await Modal.create({
+    title: await getString('paytitle', 'paygw_payway'),
+    body: await Templates.render('paygw_payway/payway_loading_placeholder', {}),
+    show: true,
+    removeOnClose: true,
+});
+
+/**
+ * Shows an inline error message within the credit card form.
+ *
+ * @param {HTMLElement} errorElement The element used to display form errors
+ * @param {string} message The error message to display
+ */
+const showFormError = (errorElement, message) => {
+    errorElement.textContent = message;
+    errorElement.style.display = 'block';
+};
+
+/**
+ * Hides the inline form error message.
+ *
+ * @param {HTMLElement} errorElement The element used to display form errors
+ */
+const hideFormError = (errorElement) => {
+    errorElement.style.display = 'none';
+};
+
+/**
+ * Replaces the modal body with a success message and waits for the user to continue.
+ *
+ * @param {Modal} modal The modal to update
+ * @returns {Promise<void>}
+ */
+const showSuccessAndWaitForContinue = async(modal) => {
+    modal.setBody(Templates.render('paygw_payway/payway_success_placeholder', {}));
+    const body = await modal.getBodyPromise();
+
+    return new Promise((resolve) => {
+        body[0].querySelector('#payway-success-continue').addEventListener('click', () => resolve());
+    });
+};
+
+/**
  * Process the payment.
  *
  * @param {string} component Name of the component that the itemId belongs to
@@ -35,29 +85,86 @@ import { getConfigForJs } from "./repository";
  * @returns {Promise<string>}
  */
 export const process = async (component, paymentArea, itemId, description) => {
-    // Load payway.js.
-    const payway = await bootstrap_payway();
+    const modal = await showModalWithLoadingPlaceholder();
 
-    // Load config (need the publishable key).
-    const config = await getConfigForJs(component, paymentArea, itemId);
+    let payway;
+    let config;
+    try {
+        [payway, config] = await Promise.all([
+            bootstrap_payway(),
+            getConfigForJs(component, paymentArea, itemId),
+        ]);
+    } catch (e) {
+        // Hide our modal first, so the error is visible instead of stuck behind it.
+        modal.hide();
+        throw new Error(await getString('error:paymentsetupfailed', 'paygw_payway'));
+    }
 
-    // Setup payway injection element.
-    // TODO finish this - we need to pop up a model and add this element in.
-    create_payway_creditcard_div()
+    modal.setBody(Templates.render('paygw_payway/payway_creditcard_modal', {
+        sandbox: config.sandbox,
+        description,
+        cost: config.cost,
+        currency: config.currency.toUpperCase(),
+    }));
+    const body = await modal.getBodyPromise();
+
+    const modalBody = body[0];
+    const submitButton = modalBody.querySelector('#payway-cc-submit');
+    const errorElement = modalBody.querySelector('#payway-cc-error');
 
     return new Promise((resolve, reject) => {
+        let creditCardFrame = null;
+
+        // Called once the token has been retrieved from the trusted frame.
+        const tokenCallback = (err, data) => {
+            if (err) {
+                submitButton.disabled = false;
+                showFormError(errorElement, err.message);
+                return;
+            }
+
+            processPayment(component, paymentArea, itemId, data.singleUseTokenId).then(async(response) => {
+                if (response.status === 'ok') {
+                    await showSuccessAndWaitForContinue(modal);
+                    modal.hide();
+                    resolve(response.status);
+                } else {
+                    submitButton.disabled = false;
+                    showFormError(errorElement, response.status);
+                }
+            });
+
+            creditCardFrame.destroy();
+            creditCardFrame = null;
+        };
+
+        // Called once the trusted frame has been created and is ready for input.
+        const createdCallback = async(err, frame) => {
+            if (err) {
+                // Hide our modal first, so the error is visible instead of stuck behind it.
+                modal.hide();
+                reject(await getString('error:paymentsetupfailed', 'paygw_payway'));
+                return;
+            }
+
+            creditCardFrame = frame;
+        };
+
+        submitButton.addEventListener('click', () => {
+            hideFormError(errorElement);
+            submitButton.disabled = true;
+            creditCardFrame.getToken(tokenCallback);
+        });
+
         payway.createCreditCardFrame({
             publishableApiKey: config.publishablekey,
+            tokenMode: 'callback',
             onValid: () => {
-                console.log("valid");
-                resolve();
-                // TODO.
+                submitButton.disabled = false;
             },
             onInvalid: () => {
-                console.log("invalid");
-                reject();
-                // TODO.
+                submitButton.disabled = true;
             }
-        });
-    })
+        }, createdCallback);
+    });
 }
