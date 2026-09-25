@@ -76,6 +76,84 @@ const showSuccessAndWaitForContinue = async(modal) => {
 };
 
 /**
+ * Waits for a single click on the given element.
+ *
+ * @param {HTMLElement} element The element to listen for a click on
+ * @returns {Promise<void>}
+ */
+const waitForClick = (element) => new Promise((resolve) => {
+    element.addEventListener('click', () => resolve(), {once: true});
+});
+
+/**
+ * Converts a PayWay-style callback function (that calls back with (err, result)) into a Promise.
+ *
+ * @param {Function} callbackFn Function that accepts a single (err, result) callback
+ * @returns {Promise<*>} Resolves with the result, or rejects with the error
+ */
+const callbackToPromise = (callbackFn) => new Promise((resolve, reject) => {
+    callbackFn((err, result) => err ? reject(err) : resolve(result));
+});
+
+/**
+ * Creates the trusted PayWay credit card frame within the modal.
+ *
+ * @param {object} payway The bootstrapped PayWay object
+ * @param {string} publishableApiKey The PayWay publishable API key
+ * @param {HTMLElement} submitButton The submit button, enabled/disabled based on card validity
+ * @returns {Promise<object>} The created credit card frame
+ */
+const createCreditCardFrame = (payway, publishableApiKey, submitButton) => callbackToPromise((callback) => {
+    payway.createCreditCardFrame({
+        publishableApiKey,
+        tokenMode: 'callback',
+        onValid: () => {
+            submitButton.disabled = false;
+        },
+        onInvalid: () => {
+            submitButton.disabled = true;
+        },
+    }, callback);
+});
+
+/**
+ * Waits for the submit button to be clicked, then attempts to obtain a single-use token and
+ * process the payment. Returns whether the payment succeeded, so the caller can decide whether
+ * to try again.
+ *
+ * @param {object} creditCardFrame The trusted PayWay credit card frame
+ * @param {HTMLElement} submitButton The submit button
+ * @param {HTMLElement} errorElement The element used to display form errors
+ * @param {string} component Name of the component that the itemId belongs to
+ * @param {string} paymentArea The area of the component that the itemId belongs to
+ * @param {number} itemId An internal identifier that is used by the component
+ * @returns {Promise<boolean>} True if the payment succeeded
+ */
+const attemptPayment = async(creditCardFrame, submitButton, errorElement, component, paymentArea, itemId) => {
+    await waitForClick(submitButton);
+    hideFormError(errorElement);
+    submitButton.disabled = true;
+
+    try {
+        const {singleUseTokenId} = await callbackToPromise((callback) => creditCardFrame.getToken(callback));
+        const response = await processPayment(component, paymentArea, itemId, singleUseTokenId);
+
+        if (response.status !== 'ok') {
+            showFormError(errorElement, response.status);
+            return false;
+        }
+
+        return true;
+    } catch (e) {
+        // Catches both invalid card errors from PayWay, and any failures from the processPayment webservice.
+        showFormError(errorElement, e.message ?? String(e));
+        return false;
+    } finally {
+        submitButton.disabled = false;
+    }
+};
+
+/**
  * Process the payment.
  *
  * @param {string} component Name of the component that the itemId belongs to
@@ -106,65 +184,30 @@ export const process = async (component, paymentArea, itemId, description) => {
         cost: config.cost,
         currency: config.currency.toUpperCase(),
     }));
-    const body = await modal.getBodyPromise();
+    const [modalBody] = await modal.getBodyPromise();
 
-    const modalBody = body[0];
     const submitButton = modalBody.querySelector('#payway-cc-submit');
     const errorElement = modalBody.querySelector('#payway-cc-error');
 
-    return new Promise((resolve, reject) => {
-        let creditCardFrame = null;
+    let creditCardFrame;
+    try {
+        creditCardFrame = await createCreditCardFrame(payway, config.publishablekey, submitButton);
+    } catch (e) {
+        // Hide our modal first, so the error is visible instead of stuck behind it.
+        modal.hide();
+        throw new Error(await getString('error:paymentsetupfailed', 'paygw_payway'));
+    }
 
-        // Called once the token has been retrieved from the trusted frame.
-        const tokenCallback = (err, data) => {
-            if (err) {
-                submitButton.disabled = false;
-                showFormError(errorElement, err.message);
-                return;
-            }
+    // Keep letting the user retry until the payment succeeds.
+    let paymentSucceeded = false;
+    while (!paymentSucceeded) {
+        paymentSucceeded = await attemptPayment(
+            creditCardFrame, submitButton, errorElement, component, paymentArea, itemId
+        );
+    }
 
-            processPayment(component, paymentArea, itemId, data.singleUseTokenId).then(async(response) => {
-                if (response.status === 'ok') {
-                    await showSuccessAndWaitForContinue(modal);
-                    modal.hide();
-                    resolve(response.status);
-                } else {
-                    submitButton.disabled = false;
-                    showFormError(errorElement, response.status);
-                }
-            });
-
-            creditCardFrame.destroy();
-            creditCardFrame = null;
-        };
-
-        // Called once the trusted frame has been created and is ready for input.
-        const createdCallback = async(err, frame) => {
-            if (err) {
-                // Hide our modal first, so the error is visible instead of stuck behind it.
-                modal.hide();
-                reject(await getString('error:paymentsetupfailed', 'paygw_payway'));
-                return;
-            }
-
-            creditCardFrame = frame;
-        };
-
-        submitButton.addEventListener('click', () => {
-            hideFormError(errorElement);
-            submitButton.disabled = true;
-            creditCardFrame.getToken(tokenCallback);
-        });
-
-        payway.createCreditCardFrame({
-            publishableApiKey: config.publishablekey,
-            tokenMode: 'callback',
-            onValid: () => {
-                submitButton.disabled = false;
-            },
-            onInvalid: () => {
-                submitButton.disabled = true;
-            }
-        }, createdCallback);
-    });
-}
+    creditCardFrame.destroy();
+    await showSuccessAndWaitForContinue(modal);
+    modal.hide();
+    return 'ok';
+};

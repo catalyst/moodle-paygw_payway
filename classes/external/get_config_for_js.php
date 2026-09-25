@@ -67,6 +67,14 @@ class get_config_for_js extends external_api {
             'itemid' => $itemid,
         ]);
 
+        // Allows Behat tests to slow this down deterministically, so the loading placeholder can be observed.
+        if (defined('BEHAT_SITE_RUNNING')) {
+            $delayseconds = (int) get_config('paygw_payway', 'behat_forced_delay_seconds');
+            if ($delayseconds > 0) {
+                sleep($delayseconds);
+            }
+        }
+
         $config = helper::get_gateway_configuration($component, $paymentarea, $itemid, 'payway');
         $payable = helper::get_payable($component, $paymentarea, $itemid);
         $surcharge = helper::get_gateway_surcharge('payway');

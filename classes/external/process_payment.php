@@ -31,6 +31,8 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_single_structure;
+use core_payment\helper as payment_helper;
+use moodle_exception;
 
 /**
  * External function to process a PayWay single-use token and complete the payment.
@@ -61,6 +63,7 @@ class process_payment extends external_api {
      * @return string[]
      */
     public static function execute(string $component, string $paymentarea, int $itemid, string $token): array {
+        global $USER;
         self::validate_parameters(self::execute_parameters(), [
             'component' => $component,
             'paymentarea' => $paymentarea,
@@ -68,7 +71,19 @@ class process_payment extends external_api {
             'token' => $token,
         ]);
 
-        // TODO: use the token to charge the card via the PayWay API and record the payment.
+        // Allows Behat tests to force a deterministic outcome, since real PayWay processing is not yet implemented.
+        if (defined('BEHAT_SITE_RUNNING')) {
+            $forcedstatus = get_config('paygw_payway', 'behat_forced_payment_status');
+            if ($forcedstatus === 'exception') {
+                throw new moodle_exception('error:paymentsetupfailed', 'paygw_payway');
+            } else if ($forcedstatus) {
+                return ['status' => $forcedstatus];
+            }
+        }
+
+        // TODO: properly implement sending payment to PayWay, for now just always deliver the order.
+        payment_helper::deliver_order($component, $paymentarea, $itemid, random_int(0, 1000), (int) $USER->id);
+
         return [
             'status' => 'ok',
         ];
