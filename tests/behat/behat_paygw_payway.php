@@ -100,6 +100,8 @@ class behat_paygw_payway extends behat_base {
                 'publishablekey' => $publishablekey,
                 'secretkey' => $secretkey,
                 'environment' => 'sandbox',
+                'merchantid' => 'TEST',
+                'notificationemail' => 'notifications@example.com',
             ]),
         ]);
     }
@@ -121,7 +123,7 @@ class behat_paygw_payway extends behat_base {
                     }
                     createdCallback(null, {
                         getToken: function(tokenCallback) {
-                            tokenCallback(null, {singleUseTokenId: 'behat-fake-single-use-token'});
+                            tokenCallback(null, {singleUseTokenId: '2bcec36f-7b02-43db-b3ec-bfb65acfe272'});
                         },
                         destroy: function() {},
                     });
@@ -133,19 +135,30 @@ class behat_paygw_payway extends behat_base {
     /**
      * Enter sandbox card details into PayWay's trusted frame.
      *
-     * @Given /^I enter PayWay card number "(\d+)" expiry "(\d{2}\/\d{2})" CVV "(\d+)" name "([^"]+)"$/
+     * PayWay's test-card table uses # for the expiry year's decade. The
+     * symbolic forms below preserve each card's documented final year digit
+     * while calculating a suitable future decade for the current date.
+     * See https://www.payway.com.au/docs/rest.html#reference-test-card-numbers
+     *
+     * @Given /^I enter PayWay card number "(\d+)" expiry "(\d{2})\/(\d{2}|future[05-9])" CVV "(\d+)" name "([^"]+)"$/
      * @param string $number
-     * @param string $expiry
+     * @param string $month
+     * @param string $year
      * @param string $securitycode
      * @param string $name
      */
     public function i_enter_payway_card_details(
         string $number,
-        string $expiry,
+        string $month,
+        string $year,
         string $securitycode,
         string $name
     ): void {
-        [$month, $year] = explode('/', $expiry);
+        if (str_starts_with($year, 'future')) {
+            $finaldigit = substr($year, -1);
+            $decade = intdiv((int) date('Y'), 10) % 10 + 1;
+            $year = $decade . $finaldigit;
+        }
 
         $iframe = $this->spin(function () {
             return $this->getSession()->getPage()->find('css', '#payway-credit-card iframe.payway-credit-card-iframe');
@@ -177,6 +190,71 @@ class behat_paygw_payway extends behat_base {
      */
     public function payway_payment_processing_is_forced_to_fail(): void {
         set_config('behat_force_payment_error', 1, 'paygw_payway');
+    }
+
+    /**
+     * Configure a BEHAT-only sequence of simulated PayWay API outcomes.
+     * Supported values include approved, approved*, pending, declined, voided,
+     * suspended, retry, invalid, servererror, networkerror, and responseerror.
+     *
+     * @Given /^PayWay API response sequence is "([^"]+)"$/
+     * @param string $sequence comma-separated response names
+     */
+    public function payway_api_response_sequence_is(string $sequence): void {
+        $responses = array_values(array_filter(array_map('trim', explode(',', $sequence))));
+        set_config('behat_mock_payment_response_sequence', json_encode($responses), 'paygw_payway');
+        set_config('behat_payment_attempts', '[]', 'paygw_payway');
+    }
+
+    /**
+     * Verify that retrying the same request keeps its key and PayWay token.
+     *
+     * @Then /^PayWay should have retried the same payment request$/
+     */
+    public function payway_should_have_retried_the_same_payment_request(): void {
+        $attempts = json_decode(get_config('paygw_payway', 'behat_payment_attempts') ?: '[]', true);
+        if (count($attempts) !== 2 || $attempts[0] !== $attempts[1]) {
+            throw new ExpectationException('PayWay did not retry the same token and key.', $this->getSession());
+        }
+    }
+
+    /**
+     * Verify that a subsequent manual submission uses a new idempotency key.
+     *
+     * @Then /^PayWay should have used distinct payment keys$/
+     */
+    public function payway_should_have_used_distinct_payment_keys(): void {
+        $attempts = json_decode(get_config('paygw_payway', 'behat_payment_attempts') ?: '[]', true);
+        if (count($attempts) !== 2 || $attempts[0]['idempotencykey'] === $attempts[1]['idempotencykey']) {
+            throw new ExpectationException('PayWay did not use a fresh key for the new submission.', $this->getSession());
+        }
+    }
+
+    /**
+     * Set the countdown used by the BEHAT-only retry response.
+     *
+     * @Given /^PayWay retry delay is "(\d+)" seconds?$/
+     * @param string $seconds
+     */
+    public function payway_retry_delay_is_seconds(string $seconds): void {
+        set_config('behat_retry_after_seconds', (int) $seconds, 'paygw_payway');
+    }
+
+    /**
+     * Wait for PayWay to complete a payment, allowing for its retry countdown.
+     *
+     * @Then /^I wait for PayWay payment success$/
+     */
+    public function i_wait_for_payway_payment_success(): void {
+        $this->spin(
+            function (): bool {
+                return (bool) $this->getSession()->getPage()->find('css', '.modal.show .paygw-payway-success');
+            },
+            false,
+            60,
+            new ExpectationException('PayWay did not complete the payment within 60 seconds.', $this->getSession()),
+            true
+        );
     }
 
     /**

@@ -39,20 +39,20 @@ class payway_api {
 
     /**
      * Create API class
-     * @param api_credential $credential api credentials
+     * @param api_configuration $credential api credentials
      */
     public function __construct(
-        /** @var api_credential $credential api credentials */
-        protected readonly api_credential $credential,
+        /** @var api_configuration $credential api credentials */
+        protected readonly api_configuration $credential,
     ) {
     }
 
     /**
      * Create new instance of payway api.
-     * @param api_credential $credential the credentials
+     * @param api_configuration $credential the credentials
      * @return payway_api
      */
-    public static function new(api_credential $credential): payway_api {
+    public static function new(api_configuration $credential): payway_api {
         return new payway_api($credential);
     }
 
@@ -63,21 +63,89 @@ class payway_api {
      */
     public function test_secret_key(int $timeout = self::DEFAULT_TIMEOUT): int {
         // PayWay docs specify to test API token, do a GET request on the base url.
-        $info = $this->secret_authorized_get(self::API_BASE_URL, $timeout);
-        return $info['http_code'] ?? 500;
+        return $this->secret_authorized_request('GET', self::API_BASE_URL, [], $timeout)->httpcode ?: 500;
     }
 
     /**
-     * Do a authorized curl using the secret key
-     * @param string $url
-     * @param int $timeout request timeout in seconds
-     * @return array curl response info
+     * Call the PayWay API to process a payment for the configured credentials, and price.
+     *
+     * @param string $singleusetoken Token returned by payway.js identifying the card being charged
+     * @param string $idempotencykey UUID used to avoid duplicate charges
+     * @param float $price the amount to charge the user. Note this is always in AUD.
+     * @param int $customernumber
+     * @return api_response
      */
-    protected function secret_authorized_get(string $url, int $timeout = self::DEFAULT_TIMEOUT): array {
+    public function process_payment(
+        string $singleusetoken,
+        string $idempotencykey,
+        float $price,
+        int $customernumber
+    ): api_response {
+        // See PayWay's transaction request fields and duplicate-payment guidance.
+        // See https://www.payway.com.au/docs/rest.html#resources-transactions.
+
+        $params = [
+            'singleUseTokenId' => $singleusetoken,
+            'customerNumber' => $customernumber,
+            'transactionType' => 'payment',
+            'principalAmount' => $price,
+            'currency' => 'aud',
+            'merchantId' => $this->credential->merchantid,
+            // 3DSecure fraud detection is not supported by this plugin.
+            'threeDS2' => false,
+        ];
+
+        $remoteip = getremoteaddr(null);
+        // PayWay recommends customerIpAddress for cardholder-initiated payments.
+        // See https://www.payway.com.au/docs/customer-ip-address.html .
+
+        if (!empty($remoteip)) {
+            $params['customerIpAddress'] = $remoteip;
+        }
+
+        // Idempotency-Key is a request header, not a form parameter. PayWay's
+        // retry guidance is documented at the URL below.
+        // See https://www.payway.com.au/docs/rest.html#basics-sending-requests .
+
+        return $this->secret_authorized_request(
+            'POST',
+            self::API_BASE_URL . '/transactions',
+            $params,
+            self::DEFAULT_TIMEOUT,
+            ['Idempotency-Key: ' . $idempotencykey],
+        );
+    }
+
+    /**
+     * Make an authorized HTTP request using the secret key.
+     *
+     * @param string $method HTTP method
+     * @param string $url
+     * @param array $params form parameters
+     * @param int $timeout request timeout in seconds
+     * @param array $headers additional request headers
+     * @return api_response
+     */
+    protected function secret_authorized_request(
+        string $method,
+        string $url,
+        array $params = [],
+        int $timeout = self::DEFAULT_TIMEOUT,
+        array $headers = []
+    ): api_response {
         $curl = new curl();
-        $curl->setopt($this->prepare_secret_authorization_curl_options() + $this->prepare_timeout_curl_options($timeout));
-        $curl->get($url);
-        return $curl->get_info();
+        $options = $this->prepare_secret_authorization_curl_options() + $this->prepare_timeout_curl_options($timeout);
+        if (!empty($headers)) {
+            $options['CURLOPT_HTTPHEADER'] = $headers;
+        }
+        $curl->setopt($options);
+        $body = strtoupper($method) === 'GET' ? $curl->get($url) : $curl->post($url, $params);
+        $info = $curl->get_info();
+        return new api_response(
+            httpcode: (int) ($info['http_code'] ?? 0),
+            body: (string) $body,
+            curlerrno: (int) $curl->get_errno(),
+        );
     }
 
     /**

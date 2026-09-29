@@ -19,33 +19,34 @@ namespace paygw_payway\check;
 use action_link;
 use core\check\check;
 use core\check\result;
+use invalid_parameter_exception;
 use moodle_url;
-use paygw_payway\local\api_credential;
+use paygw_payway\local\api_configuration;
 use paygw_payway\local\payway_api;
 use Throwable;
 
 /**
- * Secret key api token check.
+ * Gateway config + Secret key api token check.
  *
  * @package    paygw_payway
  * @copyright  2026 Catalyst IT Australia
  * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class secret_key extends check {
+class gateway extends check {
     /**
      * Create check
      * @param int $gatewayid payment_gateway db record id
      * @param bool $gatewayenabled if the gateway is enabled
-     * @param api_credential $credential the credentials configured for this gateway
+     * @param string $config the stored configuration for this gateway
      */
     public function __construct(
         /** @var int $gatewayid payment_gateway db record id */
         protected readonly int $gatewayid,
         /** @var bool $gatewayenabled if the gateway is enabled */
         protected readonly bool $gatewayenabled,
-        /** @var api_credential $credential the credentials configured for this gateway */
-        protected readonly api_credential $credential
+        /** @var array $config the stored configuration for this gateway */
+        protected readonly string $config
     ) {
     }
 
@@ -65,35 +66,35 @@ class secret_key extends check {
      * @return result
      */
     public function get_result(): result {
-        $statuscode = result::UNKNOWN;
-        $message = '';
-
         try {
-            $api = payway_api::new($this->credential);
+            $credentialdata = json_decode($this->config, flags: JSON_THROW_ON_ERROR);
 
-            // Check key formatting while parsing key name.
-            $keynameresult = api_credential::parse_and_validate_key_name($this->credential->secretkey, api_credential::TYPE_SECRET);
-
-            // Failed to parse, bad format.
-            if ($keynameresult->is_err()) {
+            // First parse/validate credentials.
+            $credentialresult = api_configuration::validate_and_parse_stored_config($credentialdata);
+            if ($credentialresult->is_err()) {
                 $statuscode = $this->gatewayenabled ? result::ERROR : result::WARNING;
-                $message = get_string('connectiontestcannotparse', 'paygw_payway') . $keynameresult->error;
-            }
-
-            // Parsed ok, test it.
-            if ($keynameresult->is_ok()) {
+                $message = $credentialresult->error;
+                return new result($statuscode, $message);
+            } else {
+                // Now test via API.
+                $credential = $credentialresult->unwrap();
+                $api = payway_api::new($credential);
                 $status = $api->test_secret_key();
+                $keyname = api_configuration::parse_and_validate_key_name(
+                    $credential->secretkey,
+                    api_configuration::KEY_TYPE_SECRET
+                )->unwrap();
 
                 // Ok if 200, else warning if not enabled or error if is enabled.
                 $statuscode = $status == 200 ? result::OK : ($this->gatewayenabled ? result::ERROR : result::WARNING);
-                $message = get_string('connectiontest', 'paygw_payway', ['status' => $status, 'keyname' => $keynameresult->value]);
+                $message = get_string('connectiontest', 'paygw_payway', ['status' => $status, 'keyname' => $keyname]);
+                return new result($statuscode, $message);
             }
         } catch (Throwable $e) {
             // Catch-all to not blow up check api status page, in case of any exception.
             $statuscode = result::UNKNOWN;
             $message = get_string('connectiontestunknown', 'paygw_payway', $e->getMessage());
+            return new result($statuscode, $message);
         }
-
-        return new result($statuscode, $message);
     }
 }

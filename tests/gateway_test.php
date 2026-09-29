@@ -61,6 +61,7 @@ final class gateway_test extends advanced_testcase {
     public function test_validate_gateway_form_accepts_valid_data(): void {
         $data = (object) [
             'environment' => environment::Sandbox->value,
+            'merchantid' => 'TEST',
             'secretkey' => 'APPLICATION_SEC_xyzabc',
             'publishablekey' => 'APPLICATION_PUB_uvwxyz',
         ];
@@ -79,6 +80,7 @@ final class gateway_test extends advanced_testcase {
     public function test_validate_gateway_form_rejects_invalid_environment(): void {
         $data = (object) [
             'environment' => 'not-a-real-environment',
+            'merchantid' => 'TEST',
             'secretkey' => 'APPLICATION_SEC_xyzabc',
             'publishablekey' => 'APPLICATION_PUB_uvwxyz',
         ];
@@ -97,6 +99,7 @@ final class gateway_test extends advanced_testcase {
     public function test_validate_gateway_form_rejects_invalid_secretkey_format(): void {
         $data = (object) [
             'environment' => environment::Sandbox->value,
+            'merchantid' => 'TEST',
             'secretkey' => 'notvalid',
             'publishablekey' => 'APPLICATION_PUB_uvwxyz',
         ];
@@ -116,6 +119,7 @@ final class gateway_test extends advanced_testcase {
     public function test_validate_gateway_form_rejects_invalid_publishablekey_format(): void {
         $data = (object) [
             'environment' => environment::Sandbox->value,
+            'merchantid' => 'TEST',
             'secretkey' => 'APPLICATION_SEC_xyzabc',
             'publishablekey' => 'notvalid',
         ];
@@ -135,6 +139,7 @@ final class gateway_test extends advanced_testcase {
     public function test_validate_gateway_form_rejects_swapped_key_types(): void {
         $data = (object) [
             'environment' => environment::Sandbox->value,
+            'merchantid' => 'TEST',
             'secretkey' => 'APPLICATION_PUB_uvwxyz',
             'publishablekey' => 'APPLICATION_SEC_xyzabc',
         ];

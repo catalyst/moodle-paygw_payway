@@ -1,5 +1,5 @@
 <?php
-// This file is part of Moodle - http://moodle.org/
+// This file is part of Moodle - https://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -12,32 +12,23 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+namespace paygw_payway\local;
 
 /**
- * Lib functions
+ * PayWay transaction statuses (https://www.payway.com.au/docs/rest.html#transaction-status).
  *
  * @package    paygw_payway
  * @copyright  2026 Catalyst IT Australia
  * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-
-use paygw_payway\check\gateway;
-
-/**
- * Return check API status checks
- * @return array
- */
-function paygw_payway_status_checks(): array {
-    global $DB;
-
-    // There are likely to be only a handful of gateways on a given site,
-    // so its ok to query them all at once here.
-    $gateways = $DB->get_records('payment_gateways', ['gateway' => 'payway'], 'id, enabled, config');
-    $checks = array_map(function ($gateway) {
-        return new gateway($gateway->id, $gateway->enabled, $gateway->config);
-    }, $gateways);
-
-    return array_values(array_filter($checks));
+enum status: string {
+    case Approved = "approved";
+    case ApprovedAsterisk = "approved*";
+    case Pending = "pending";
+    case Declined = "declined";
+    case Voided = "voided";
+    case Suspended = "suspended";
 }

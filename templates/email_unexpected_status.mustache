@@ -1,0 +1,47 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template paygw_payway/email_unexpected_status
+
+    Email body sent to the gateway notification email when an unexpected payment status is encountered.
+
+    Example context (json):
+    {
+        "transactionid": "1234567890",
+        "receiptnumber": "1234567890",
+        "status": "approved*",
+        "responsecode": "08",
+        "responsetext": "Honour with identification",
+        "userid": 2,
+        "userfullname": "Admin User",
+        "useremail": "admin@example.com",
+        "component": "enrol_fee",
+        "paymentarea": "fee",
+        "itemid": 1,
+        "delivered": true
+    }
+}}
+<p>{{#str}} email:unexpectedstatus:intro, paygw_payway {{/str}}</p>
+<ul>
+    <li>{{#str}} email:transactionid, paygw_payway {{/str}}: {{transactionid}}</li>
+    <li>{{#str}} email:receiptnumber, paygw_payway {{/str}}: {{receiptnumber}}</li>
+    <li>{{#str}} email:status, paygw_payway {{/str}}: {{status}}</li>
+    <li>{{#str}} email:response, paygw_payway {{/str}}: {{responsecode}} - {{responsetext}}</li>
+    <li>{{#str}} email:user, paygw_payway {{/str}}: {{userfullname}} ({{useremail}}, id {{userid}})</li>
+    <li>{{#str}} email:item, paygw_payway {{/str}}: {{component}} / {{paymentarea}} / {{itemid}}</li>
+    <li>{{#str}} email:delivered, paygw_payway {{/str}}: {{#delivered}}{{#str}} yes {{/str}}{{/delivered}}{{^delivered}}{{#str}} no {{/str}}{{/delivered}}</li>
+</ul>
