@@ -14,17 +14,31 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+namespace paygw_payway\external;
+
+use advanced_testcase;
+use moodle_exception;
+
 /**
- * Version information
+ * Tests for the PayWay payment processing web service.
  *
  * @package    paygw_payway
  * @copyright  2026 Catalyst IT Australia
  * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @covers     \paygw_payway\external\process_payment
  */
+final class process_payment_test extends advanced_testcase {
+    /**
+     * Guests must not be able to submit a payment or receive an order.
+     */
+    public function test_guest_cannot_process_payment(): void {
+        $this->resetAfterTest();
+        $this->setGuestUser();
 
-defined('MOODLE_INTERNAL') || die();
+        $this->expectException(moodle_exception::class);
+        $this->expectExceptionMessage(get_string('guestsarenotallowed', 'error'));
 
-$plugin->version   = 2026092102;
-$plugin->requires  = 2024100700; // 4.5.
-$plugin->component = 'paygw_payway';
+        process_payment::execute('enrol_fee', 'fee', 1, 'fake-token');
+    }
+}

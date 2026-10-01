@@ -1,0 +1,47 @@
+.paygw-payway-modal-content {
+    max-width: 400px;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+.paygw-payway-order-details {
+    text-align: left;
+}
+
+.paygw-payway-order-heading {
+    margin-bottom: 0.25rem;
+}
+
+.paygw-payway-success {
+    text-align: center;
+}
+
+.paygw-payway-loading-bar {
+    width: 100%;
+    height: 45px;
+    margin-bottom: 14px;
+}
+
+.paygw-payway-loading-text {
+    width: 110px;
+    height: 16px;
+    margin: 10px auto;
+    position: relative;
+    bottom: 3px;
+}
+
+#payway-credit-card {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 14px;
+}
+
+#payway-cc-error {
+    display: none;
+}
+
+#payway-cc-submit,
+#payway-success-continue {
+    display: block;
+    width: 100%;
+}
