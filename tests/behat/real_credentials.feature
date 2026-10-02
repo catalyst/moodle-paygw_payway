@@ -40,7 +40,7 @@ Feature: Paying with the PayWay gateway (real sandbox credentials)
     When I press "Select payment type"
     And ".payway" "css_element" in the "Select payment type" "dialogue" should be visible
     And I click on "Proceed" "button" in the "Select payment type" "dialogue"
-    And I enter PayWay card number "4564710000000004" expiry "01/future9" CVV "847" name "Behat Test"
+    And I enter PayWay card number "4564710000000012" expiry "02/future5" CVV "963" name "Behat Test"
     And I click on "#payway-cc-submit" "css_element"
     Then I wait until "Payment could not be completed" "text" exists
     And I should not see "Expired card"

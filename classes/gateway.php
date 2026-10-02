@@ -19,6 +19,8 @@ namespace paygw_payway;
 use paygw_payway\local\api_configuration;
 use paygw_payway\local\environment;
 use coding_exception;
+use core\url;
+use html_writer;
 use ValueError;
 
 /**
@@ -30,6 +32,19 @@ use ValueError;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class gateway extends \core_payment\gateway {
+    /**
+     * Acquire the lock used while a gateway configuration is being changed.
+     *
+     * @param int $gatewayid gateway id, or account id when creating a gateway
+     * @param int $timeout lock acquisition timeout in seconds
+     * @param int $lifetime lock lifetime
+     * @return \core\lock\lock|false
+     */
+    public static function get_configuration_lock(int $gatewayid, int $timeout, int $lifetime) {
+        $lockfactory = \core\lock\lock_config::get_lock_factory('paygw_payway');
+        return $lockfactory->get_lock('gateway_config:' . $gatewayid, $timeout, $lifetime);
+    }
+
     /**
      * Supported currencies list
      * @return array
@@ -51,17 +66,27 @@ class gateway extends \core_payment\gateway {
     public static function add_configuration_to_gateway_form(\core_payment\form\account_gateway $form): void {
         $mform = $form->get_mform();
 
-        $mform->addElement('text', 'publishablekey', get_string('publishablekey', 'paygw_payway'));
+        $mform->addElement('text', 'publishablekey', get_string('publishablekey', 'paygw_payway'), ['size' => 40]);
         $mform->setType('publishablekey', PARAM_TEXT);
         $mform->addHelpButton('publishablekey', 'publishablekey', 'paygw_payway');
         $mform->addRule('publishablekey', null, 'required');
 
         $mform->addElement('static', 'publishablekeystatuscheck', '', get_string('publishablekeystatuscheck', 'paygw_payway'));
 
-        $mform->addElement('text', 'secretkey', get_string('secretkey', 'paygw_payway'));
+        $mform->addElement('passwordunmask', 'secretkey', get_string('secretkey', 'paygw_payway'));
         $mform->setType('secretkey', PARAM_TEXT);
         $mform->addHelpButton('secretkey', 'secretkey', 'paygw_payway');
         $mform->addRule('secretkey', null, 'required');
+
+        $mform->addElement(
+            'static',
+            'secretkeyrenewalnotice',
+            '',
+            html_writer::link(
+                new url('/admin/tasklogs.php', ['filter' => 'paygw_payway\task\check_token_renewal_adhoc']),
+                get_string('secretkeyrenewalnotice', 'paygw_payway')
+            )
+        );
 
         $environments = array_column(environment::cases(), 'value');
         $environmentlabels = array_map(fn($env) => get_string('environment:' . $env, 'paygw_payway'), $environments);
@@ -128,6 +153,21 @@ class gateway extends \core_payment\gateway {
         );
         if ($publishablekeyverification->is_err()) {
             $errors['publishablekey'] = $publishablekeyverification->error;
+        }
+
+        // This is a bit hacky, but we also check if the configuration is locked atm,
+        // e.g. the automated secret renewal might be running at the same time.
+        // so try take out a lock and add a form error if we can't.
+        // It won't catch all edge cases but should catch most.
+        if (!empty($data->id)) {
+            // Timeout = 0 seconds (if locked don't wait - just exit early and show form error),
+            // Lifetime = 5 seconds (not really applicable because we release it immediately, but just in case this explodes).
+            $lock = self::get_configuration_lock((int)$data->id, timeout: 0, lifetime: 5);
+            if (!$lock) {
+                $errors['secretkey'] = get_string('configurationlocked', 'paygw_payway');
+            } else {
+                $lock->release();
+            }
         }
     }
 }

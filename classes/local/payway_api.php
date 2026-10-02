@@ -57,13 +57,43 @@ class payway_api {
     }
 
     /**
-     * Send a test request to confirm credential is valid.
-     * @param int $timeout request timeout in seconds
-     * @return int http status code returned from a test query
+     * Send a request to the PayWay API base URL.
+     *
+     * @param int $timeout Request timeout in seconds.
+     * @return api_response HTTP response details.
      */
-    public function test_secret_key(int $timeout = self::DEFAULT_TIMEOUT): int {
-        // PayWay docs specify to test API token, do a GET request on the base url.
-        return $this->secret_authorized_request('GET', self::API_BASE_URL, [], $timeout)->httpcode ?: 500;
+    public function get_base_url(int $timeout = self::DEFAULT_TIMEOUT): api_response {
+        return $this->secret_authorized_request('GET', self::API_BASE_URL, [], $timeout);
+    }
+
+    /**
+     * Check whether the configured secret key is valid.
+     *
+     * PayWay documents a GET request to the API base URL as the credential check.
+     * Only HTTP 200 with no cURL error is considered valid.
+     *
+     * @param int $timeout Request timeout in seconds.
+     * @return result<bool> True on success, otherwise a descriptive error.
+     */
+    public function test_is_secret_key_valid(int $timeout = self::DEFAULT_TIMEOUT): result {
+        $response = $this->get_base_url($timeout);
+        if ($response->curlerrno === 0 && $response->httpcode === 200) {
+            return result::ok(true);
+        }
+
+        return result::err(
+            'Secret API key validation failed. ' .
+                "HTTP status: {$response->httpcode}; cURL error code: {$response->curlerrno}."
+        );
+    }
+
+    /**
+     * Request the latest API key from PayWay
+     * @param int $timeout request timeout in seconds
+     * @return api_response api response.
+     */
+    public function get_latest_api_key(int $timeout = self::DEFAULT_TIMEOUT): api_response {
+        return $this->secret_authorized_request('GET', self::API_BASE_URL . '/api-keys/latest', [], $timeout);
     }
 
     /**

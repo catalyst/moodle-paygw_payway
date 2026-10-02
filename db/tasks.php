@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information
+ * Scheduled tasks
  *
  * @package    paygw_payway
  * @copyright  2026 Catalyst IT Australia
@@ -25,6 +25,13 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026092105;
-$plugin->requires  = 2024100700; // 4.5.
-$plugin->component = 'paygw_payway';
+$tasks = [
+    [
+        'classname' => 'paygw_payway\task\check_token_renewal',
+        'minute' => 'R',
+        'hour' => 'R',
+        'day' => '*',
+        'dayofweek' => '*',
+        'month' => '*',
+    ],
+];

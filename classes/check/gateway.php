@@ -79,15 +79,19 @@ class gateway extends check {
                 // Now test via API.
                 $credential = $credentialresult->unwrap();
                 $api = payway_api::new($credential);
-                $status = $api->test_secret_key();
+                $keyvalidation = $api->test_is_secret_key_valid();
                 $keyname = api_configuration::parse_and_validate_key_name(
                     $credential->secretkey,
                     api_configuration::KEY_TYPE_SECRET
                 )->unwrap();
 
-                // Ok if 200, else warning if not enabled or error if is enabled.
-                $statuscode = $status == 200 ? result::OK : ($this->gatewayenabled ? result::ERROR : result::WARNING);
-                $message = get_string('connectiontest', 'paygw_payway', ['status' => $status, 'keyname' => $keyname]);
+                if ($keyvalidation->is_err()) {
+                    $statuscode = $this->gatewayenabled ? result::ERROR : result::WARNING;
+                    return new result($statuscode, $keyvalidation->error);
+                }
+
+                $statuscode = result::OK;
+                $message = get_string('connectiontest', 'paygw_payway', ['status' => 200, 'keyname' => $keyname]);
                 return new result($statuscode, $message);
             }
         } catch (Throwable $e) {

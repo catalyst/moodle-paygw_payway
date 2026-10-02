@@ -133,7 +133,7 @@ class process_payment extends external_api {
         }
 
         try {
-            if (defined('BEHAT_SITE_RUNNING')) {
+            if (defined('BEHAT_SITE_RUNNING') && !get_config('paygw_payway', 'behat_use_real_payment_api')) {
                 $res = self::get_behat_mock_payment_response($token, $idempotencykey);
             } else {
                 $res = $api->process_payment(
@@ -279,7 +279,9 @@ class process_payment extends external_api {
      * @return api_response
      */
     private static function get_behat_mock_payment_response(string $token, string $idempotencykey): api_response {
-        $mocksequence = get_config('paygw_payway', 'behat_mock_payment_response_sequence');
+        // Some Behat payment flows may not configure an explicit response sequence.
+        // Default them to an approved response instead of passing false to json_decode().
+        $mocksequence = get_config('paygw_payway', 'behat_mock_payment_response_sequence') ?: '["approved"]';
         $sequence = json_decode($mocksequence, true, flags: JSON_THROW_ON_ERROR);
         $mockstatus = array_shift($sequence);
         set_config('behat_mock_payment_response_sequence', json_encode($sequence), 'paygw_payway');
