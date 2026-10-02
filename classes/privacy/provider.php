@@ -16,6 +16,8 @@
 
 namespace paygw_payway\privacy;
 
+use core_payment\privacy\paygw_provider;
+
 /**
  * Privacy Provider
  *
@@ -24,7 +26,7 @@ namespace paygw_payway\privacy;
  * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider implements \core_privacy\local\metadata\null_provider {
+class provider implements \core_privacy\local\metadata\null_provider, paygw_provider {
     /**
      * Get the language string identifier with the component's language
      * file to explain why this plugin stores no data.
@@ -33,5 +35,28 @@ class provider implements \core_privacy\local\metadata\null_provider {
      */
     public static function get_reason(): string {
         return 'privacy:metadata';
+    }
+
+    /**
+     * Export user data stored by this payment gateway for a payment.
+     *
+     * PayWay does not store any gateway-specific payment data.
+     *
+     * @param \context $context Context
+     * @param array $subcontext The location within the current context that the payment data belongs
+     * @param \stdClass $payment The payment record
+     */
+    public static function export_payment_data(\context $context, array $subcontext, \stdClass $payment): void {
+    }
+
+    /**
+     * Delete user data stored by this payment gateway for the given payments.
+     *
+     * PayWay does not store any gateway-specific payment data.
+     *
+     * @param string $paymentsql SQL query that selects payment.id field for the payments
+     * @param array $paymentparams Array of parameters for $paymentsql
+     */
+    public static function delete_data_for_payment_sql(string $paymentsql, array $paymentparams): void {
     }
 }
