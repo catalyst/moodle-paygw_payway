@@ -141,11 +141,12 @@ class behat_paygw_payway extends behat_base {
      * See https://www.payway.com.au/docs/rest.html#reference-test-card-numbers
      *
      * @Given /^I enter PayWay card number "(\d+)" expiry "(\d{2})\/(\d{2}|future[05-9])" CVV "(\d+)" name "([^"]+)"$/
-     * @param string $number
-     * @param string $month
-     * @param string $year
-     * @param string $securitycode
-     * @param string $name
+     * @param string $number PayWay test card number
+     * @param string $month Two-digit expiry month
+     * @param string $year Two-digit expiry year, or futureN for the next decade's year ending in N.
+     * This is not hardcoded as eventually this will be in the past and become invalid.
+     * @param string $securitycode Card verification value
+     * @param string $name Cardholder name
      */
     public function i_enter_payway_card_details(
         string $number,
