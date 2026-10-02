@@ -60,7 +60,7 @@ final class payway_api_test extends advanced_testcase {
      *
      * @return void
      */
-    public function test_test_secret_key_returns_status_code_from_api(): void {
+    public function test_get_base_url_returns_full_api_response(): void {
         $api = $this->getMockBuilder(payway_api::class)
             ->setConstructorArgs([
                 new api_configuration(
@@ -76,7 +76,55 @@ final class payway_api_test extends advanced_testcase {
 
         $api->method('secret_authorized_request')->willReturn(new api_response(201, ''));
 
-        $this->assertSame(201, $api->test_secret_key());
+        $response = $api->get_base_url();
+        $this->assertSame(201, $response->httpcode);
+    }
+
+    /**
+     * Test secret-key validation accepts only HTTP 200 without transport errors.
+     *
+     * @dataProvider secret_key_validation_response_provider
+     * @param api_response $response API response to validate.
+     * @param bool $isvalid Whether the validation should succeed.
+     */
+    public function test_secret_key_validation(api_response $response, bool $isvalid): void {
+        $api = $this->getMockBuilder(payway_api::class)
+            ->setConstructorArgs([
+                new api_configuration(
+                    'APPLICATION_PUBLISHABLE_abcdefg',
+                    'APPLICATION_SECRET_uvwxyz',
+                    environment::Sandbox,
+                    'TEST',
+                    null,
+                ),
+            ])
+            ->onlyMethods(['get_base_url'])
+            ->getMock();
+
+        $api->method('get_base_url')->willReturn($response);
+        $result = $api->test_is_secret_key_valid();
+
+        if ($isvalid) {
+            $this->assertTrue($result->is_ok());
+            $this->assertTrue($result->unwrap());
+        } else {
+            $this->assertTrue($result->is_err());
+            $this->assertNotEmpty($result->error);
+        }
+    }
+
+    /**
+     * Responses to check when validating a secret key.
+     *
+     * @return array<string, array{api_response, bool}>
+     */
+    public static function secret_key_validation_response_provider(): array {
+        return [
+            'HTTP 200' => [new api_response(200, ''), true],
+            'other success status' => [new api_response(201, ''), false],
+            'HTTP failure' => [new api_response(401, ''), false],
+            'network failure' => [new api_response(0, '', 7), false],
+        ];
     }
 
     public function test_process_payment_sends_idempotency_key_as_header(): void {

@@ -24,6 +24,7 @@
  */
 
 $string['checkgateway'] = 'Gateway key check';
+$string['configurationlocked'] = 'The configuration is currently locked by another task (most likely secret key auto rotation). Please try again shortly.';
 $string['connectiontest'] = 'HTTP {$a->status} response returned from PayWay API using secret key {$a->keyname}';
 $string['connectiontestcannotparse'] = 'Unexpected key format ';
 $string['connectiontestunknown'] = 'Unknown error during connection test: {$a}';
@@ -74,8 +75,10 @@ $string['pluginname'] = 'PayWay';
 $string['privacy:metadata'] = 'No user data is stored';
 $string['publishablekey'] = 'Publishable API key';
 $string['publishablekey_help'] = 'Your publishable API key is used by payway.js to send credit card details directly from the browser to PayWay. It is usually in the form TXXXXX_PUB_xxxx';
-$string['publishablekeystatuscheck'] = 'Note - There is currently no way to validate the publishable key.';
+$string['publishablekeystatuscheck'] = 'Note - There is currently no way to validate the publishable key. It does not expire.';
 $string['sandboxhint'] = 'SANDBOX: <a href="https://www.payway.com.au/docs/net.html#test-card-numbers" target="_blank" rel="noopener noreferrer">Test card numbers</a>.';
 $string['sandboxmerchantidmustbetest'] = 'When in sandbox environment, the merchant id must be "TEST", was {$a}';
 $string['secretkey'] = 'Secret API key';
 $string['secretkey_help'] = 'Your secret API key allows your server to process payments and provides full access to the API. It is usually in the form TXXXXX_SEC_xxxx';
+$string['secretkeyrenewalnotice'] = 'Secret key is automatically checked for renewal daily.';
+$string['task:checktokenrenewal'] = 'Check for new secret REST API token';

@@ -36,6 +36,249 @@ use Behat\Mink\Exception\ExpectationException;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class behat_paygw_payway extends behat_base {
+    /** @var \core\lock\lock|null Lock held for the current scenario. */
+    private $configurationlock;
+
+    /**
+     * Open the PayWay gateway settings page for a payment account.
+     *
+     * @Given /^I am on the PayWay configuration page for payment account "(?P<account_name>(?:[^"]|\\")*)"$/
+     * @param string $accountname
+     */
+    public function i_am_on_payway_configuration_page(string $accountname): void {
+        global $DB;
+        $accountid = $DB->get_field('payment_accounts', 'id', ['name' => $accountname], MUST_EXIST);
+        $gatewayid = $DB->get_field('payment_gateways', 'id', [
+            'accountid' => $accountid,
+            'gateway' => 'payway',
+        ], MUST_EXIST);
+        $url = new moodle_url('/payment/manage_gateway.php', ['id' => $gatewayid]);
+        $this->getSession()->visit($this->locate_path($url->out_as_local_url(false)));
+    }
+
+    /**
+     * Hold the configuration lock while the browser submits the settings form.
+     *
+     * @Given /^the PayWay configuration lock is held for payment account "(?P<account_name>(?:[^"]|\\")*)"$/
+     * @param string $accountname
+     */
+    public function the_payway_configuration_lock_is_held(string $accountname): void {
+        global $DB;
+        $accountid = $DB->get_field('payment_accounts', 'id', ['name' => $accountname], MUST_EXIST);
+        $gatewayid = $DB->get_field('payment_gateways', 'id', [
+            'accountid' => $accountid,
+            'gateway' => 'payway',
+        ], MUST_EXIST);
+        $this->configurationlock = \paygw_payway\gateway::get_configuration_lock($gatewayid, timeout: 0, lifetime: 300);
+        if (!$this->configurationlock) {
+            throw new ExpectationException('Could not acquire the PayWay configuration lock.', $this->getSession());
+        }
+    }
+
+    /**
+     * Release the configuration lock held by the current scenario.
+     *
+     * @Given /^the PayWay configuration lock is released$/
+     */
+    public function the_payway_configuration_lock_is_released(): void {
+        if ($this->configurationlock) {
+            $this->configurationlock->release();
+            $this->configurationlock = null;
+        }
+    }
+
+    /**
+     * Verify that the PayWay configuration lock is exclusive and released correctly.
+     *
+     * @Given /^the PayWay configuration lock can be acquired and released$/
+     */
+    public function the_payway_configuration_lock_can_be_acquired_and_released(): void {
+        $lock = \paygw_payway\gateway::get_configuration_lock(12345, timeout: 0, lifetime: 60);
+        if (!$lock) {
+            throw new ExpectationException('Could not acquire the PayWay configuration lock.', $this->getSession());
+        }
+        $lock->release();
+
+        $lock = \paygw_payway\gateway::get_configuration_lock(12345, timeout: 0, lifetime: 60);
+        if (!$lock) {
+            throw new ExpectationException('The PayWay configuration lock was not released.', $this->getSession());
+        }
+        $lock->release();
+    }
+
+    /**
+     * Configure mocked API responses for an automated token renewal task.
+     *
+     * @Given /^PayWay renewal API returns key "([^"]*)", HTTP "(\d+)", cURL "(\d+)" and verification "(\d+)"$/
+     * @param string $latestkey returned key, or empty string to return no key
+     * @param string $httpstatus response status from the latest-key endpoint
+     * @param string $curlerrno simulated cURL error number
+     * @param string $verificationstatus status returned when testing the new key
+     */
+    public function payway_token_renewal_returns_mocked_responses(
+        string $latestkey,
+        string $httpstatus,
+        string $curlerrno,
+        string $verificationstatus
+    ): void {
+        $body = $latestkey === '' ? '{}' : json_encode(['key' => $latestkey], JSON_THROW_ON_ERROR);
+        set_config('behat_renewal_http_status', (int) $httpstatus, 'paygw_payway');
+        set_config('behat_renewal_curl_errno', (int) $curlerrno, 'paygw_payway');
+        set_config('behat_renewal_body', $body, 'paygw_payway');
+        set_config('behat_renewal_verification_status', (int) $verificationstatus, 'paygw_payway');
+        set_config('behat_renewal_api_calls', 0, 'paygw_payway');
+        set_config('behat_renewal_error', '', 'paygw_payway');
+        set_config('behat_renewal_lock_conflict', 0, 'paygw_payway');
+    }
+
+    /**
+     * Force configuration-lock acquisition to fail in the mocked renewal task.
+     *
+     * @Given /^PayWay renewal lock acquisition is forced to fail$/
+     */
+    public function payway_renewal_lock_acquisition_is_forced_to_fail(): void {
+        set_config('behat_renewal_lock_conflict', 1, 'paygw_payway');
+    }
+
+    /**
+     * Run the ad hoc token renewal task with mocked PayWay API responses.
+     *
+     * The test task uses a zero lock timeout so lock-contention scenarios are deterministic and fast.
+     *
+     * @When /^I run PayWay token renewal for payment account "([^"]*)"$/
+     * @param string $accountname
+     */
+    public function run_payway_token_renewal(string $accountname): void {
+        global $DB;
+        $gatewayid = $DB->get_field_sql(
+            'SELECT pg.id
+               FROM {payment_gateways} pg
+               JOIN {payment_accounts} pa ON pa.id = pg.accountid
+              WHERE pa.name = :accountname AND pg.gateway = :gateway',
+            ['accountname' => $accountname, 'gateway' => 'payway'],
+            MUST_EXIST,
+        );
+        set_config('behat_renewal_accountname', $accountname, 'paygw_payway');
+
+        $task = new class extends \paygw_payway\task\check_token_renewal_adhoc {
+            /**
+             * Create the mocked PayWay API client.
+             *
+             * @param \paygw_payway\local\api_configuration $configuration API credentials.
+             * @return \paygw_payway\local\payway_api
+             */
+            protected function create_api(
+                \paygw_payway\local\api_configuration $configuration
+            ): \paygw_payway\local\payway_api {
+                return new class ($configuration) extends \paygw_payway\local\payway_api {
+                    /**
+                     * Return the configured mock response for the latest-key request.
+                     *
+                     * @param int $timeout Request timeout.
+                     * @return \paygw_payway\local\api_response
+                     */
+                    public function get_latest_api_key(
+                        int $timeout = self::DEFAULT_TIMEOUT
+                    ): \paygw_payway\local\api_response {
+                        $calls = (int) get_config('paygw_payway', 'behat_renewal_api_calls');
+                        set_config('behat_renewal_api_calls', $calls + 1, 'paygw_payway');
+                        return new \paygw_payway\local\api_response(
+                            (int) get_config('paygw_payway', 'behat_renewal_http_status'),
+                            (string) get_config('paygw_payway', 'behat_renewal_body'),
+                            (int) get_config('paygw_payway', 'behat_renewal_curl_errno'),
+                        );
+                    }
+
+                    /**
+                     * Return the configured mock status for testing the replacement key.
+                     *
+                     * @param int $timeout Request timeout.
+                     * @return int HTTP status code.
+                     */
+                    public function test_is_secret_key_valid(
+                        int $timeout = self::DEFAULT_TIMEOUT
+                    ): \paygw_payway\local\result {
+                        $calls = (int) get_config('paygw_payway', 'behat_renewal_api_calls');
+                        set_config('behat_renewal_api_calls', $calls + 1, 'paygw_payway');
+                        $status = (int) get_config('paygw_payway', 'behat_renewal_verification_status');
+                        if ($status === 200) {
+                            return \paygw_payway\local\result::ok(true);
+                        }
+                        return \paygw_payway\local\result::err(
+                            "Secret API key validation failed. HTTP status: {$status}; cURL error code: 0."
+                        );
+                    }
+                };
+            }
+
+            /**
+             * Acquire the gateway lock without waiting, keeping contention scenarios fast.
+             *
+             * @param int $gatewayid Gateway instance ID.
+             * @return \core\lock\lock|false
+             */
+            protected function acquire_configuration_lock(int $gatewayid): \core\lock\lock|false {
+                if (get_config('paygw_payway', 'behat_renewal_lock_conflict')) {
+                    return false;
+                }
+                return \paygw_payway\gateway::get_configuration_lock($gatewayid, timeout: 0, lifetime: 60);
+            }
+        };
+        $task->set_custom_data(['gatewayid' => (int) $gatewayid]);
+
+        try {
+            $task->execute();
+        } catch (\Throwable $exception) {
+            set_config('behat_renewal_error', $exception->getMessage(), 'paygw_payway');
+        }
+    }
+
+    /**
+     * Assert the stored PayWay secret token.
+     *
+     * @Then /^PayWay token renewal should leave the secret key as "([^"]*)"$/
+     * @param string $expectedkey
+     */
+    public function payway_token_renewal_should_leave_secret_key_as(string $expectedkey): void {
+        global $DB;
+        $accountid = $DB->get_field('payment_accounts', 'id', [
+            'name' => get_config('paygw_payway', 'behat_renewal_accountname'),
+        ], MUST_EXIST);
+        $configjson = $DB->get_field('payment_gateways', 'config', [
+            'accountid' => $accountid,
+            'gateway' => 'payway',
+        ], MUST_EXIST);
+        if (!is_string($configjson)) {
+            throw new ExpectationException(
+                'PayWay gateway configuration was not saved as a JSON string.',
+                $this->getSession(),
+            );
+        }
+        $config = json_decode($configjson, flags: JSON_THROW_ON_ERROR);
+        if ($config->secretkey !== $expectedkey) {
+            throw new ExpectationException(
+                "Expected PayWay secret key {$expectedkey}, got {$config->secretkey}.",
+                $this->getSession(),
+            );
+        }
+    }
+
+    /**
+     * Assert a mocked renewal failure message.
+     *
+     * @Then /^PayWay token renewal should report an error containing "([^"]*)"$/
+     * @param string $expectedmessage
+     */
+    public function payway_token_renewal_should_report_error(string $expectedmessage): void {
+        $actualmessage = (string) get_config('paygw_payway', 'behat_renewal_error');
+        if ($actualmessage === '' || !str_contains($actualmessage, $expectedmessage)) {
+            throw new ExpectationException(
+                "Expected renewal error containing '{$expectedmessage}', got '{$actualmessage}'.",
+                $this->getSession(),
+            );
+        }
+    }
+
     /**
      * Configure the PayWay gateway for a payment account with placeholder credentials.
      * Since processing is mocked/forced in these scenarios, the credentials themselves are never used.
@@ -49,6 +292,7 @@ class behat_paygw_payway extends behat_base {
             'APPLICATION_PUB_placeholder',
             'APPLICATION_SEC_placeholder'
         );
+        set_config('behat_use_real_payment_api', 0, 'paygw_payway');
     }
 
     /**
@@ -77,6 +321,7 @@ class behat_paygw_payway extends behat_base {
             $pub,
             $sec
         );
+        set_config('behat_use_real_payment_api', 1, 'paygw_payway');
     }
 
     /**
