@@ -18,6 +18,7 @@ namespace paygw_payway\local;
 
 use coding_exception;
 
+// phpcs:disable moodle.Commenting.ValidTags.Invalid -- Generic annotations are required for static analysis.
 /**
  * A rust-style result class for returning from functions, instead of throwing exceptions on errors.
  *
@@ -25,52 +26,53 @@ use coding_exception;
  * @copyright  2026 Catalyst IT Australia
  * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @template T
  */
-class result {
+final class result {
     /**
-     * Create a result
+     * Create a result - use result::ok() or result::err() instead.
      *
-     * @param string|null $value if successful, the value returned
+     * @param bool $ok whether this is an ok result
+     * @param mixed $value if successful, the value returned
      * @param string|null $error if errored, the error message
      */
-    public function __construct(
-        /** @var string|null $value if successful, the value returned */
-        public readonly string|null $value,
+    private function __construct(
+        /** @var bool $ok whether this is an ok result */
+        private readonly bool $ok,
+        /** @var T|null $value if successful, the value returned */
+        private readonly mixed $value,
         /** @var string|null $error if errored, the error message */
-        public readonly string|null $error,
+        public readonly ?string $error,
     ) {
-        if (empty($value) && empty($error)) {
-            throw new coding_exception("At least one of value or error must be given");
-        }
-        if (!empty($value) && !empty($error)) {
-            throw new coding_exception("At most one of value or error can be given");
-        }
     }
 
     /**
      * Create error result
      * @param string $error
-     * @return result
+     * @return result<never>
      */
     public static function err(string $error): result {
-        return new result(null, $error);
+        return new result(false, null, $error);
     }
 
     /**
      * Create ok result
-     * @param string $value
-     * @return result
+     * @template U
+     * @param mixed $value
+     * @phpstan-param U $value
+     * @return result<U>
      */
-    public static function ok(string $value): result {
-        return new result($value, null);
+    public static function ok(mixed $value): result {
+        return new result(true, $value, null);
     }
+    // phpcs:enable moodle.Commenting.ValidTags.Invalid
 
     /**
      * If is ok result
      * @return bool
      */
     public function is_ok(): bool {
-        return !empty($this->value) && empty($this->error);
+        return $this->ok;
     }
 
     /**
@@ -78,6 +80,17 @@ class result {
      * @return bool
      */
     public function is_err(): bool {
-        return empty($this->value) && !empty($this->error);
+        return !$this->ok;
+    }
+
+    /**
+     * Get the ok value, throwing if this is an error result.
+     * @return T
+     */
+    public function unwrap(): mixed {
+        if (!$this->ok) {
+            throw new coding_exception("Tried to unwrap error result: {$this->error}");
+        }
+        return $this->value;
     }
 }

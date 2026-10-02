@@ -30,8 +30,28 @@ Feature: Paying with the PayWay gateway (real sandbox credentials)
     When I press "Select payment type"
     And ".payway" "css_element" in the "Select payment type" "dialogue" should be visible
     And I click on "Proceed" "button" in the "Select payment type" "dialogue"
-    And I enter PayWay card number "4564710000000004" expiry "02/29" CVV "847" name "Behat Test"
+    And I enter PayWay card number "4564710000000004" expiry "02/future9" CVV "847" name "Behat Test"
     And I click on "#payway-cc-submit" "css_element"
-    Then I should see "Payment successful"
+    Then I wait for PayWay payment success
     And I click on "Enter course" "button"
     And I should see "Course 1"
+
+  Scenario: A real sandbox expired card is handled without exposing provider details
+    When I press "Select payment type"
+    And ".payway" "css_element" in the "Select payment type" "dialogue" should be visible
+    And I click on "Proceed" "button" in the "Select payment type" "dialogue"
+    And I enter PayWay card number "4564710000000004" expiry "01/future9" CVV "847" name "Behat Test"
+    And I click on "#payway-cc-submit" "css_element"
+    Then I wait until "Payment could not be completed" "text" exists
+    And I should not see "Expired card"
+    And "#payway-cc-submit" "css_element" should be visible
+
+  Scenario: A real sandbox stolen card is handled without exposing provider details
+    When I press "Select payment type"
+    And ".payway" "css_element" in the "Select payment type" "dialogue" should be visible
+    And I click on "Proceed" "button" in the "Select payment type" "dialogue"
+    And I enter PayWay card number "5163200000000016" expiry "12/future9" CVV "728" name "Behat Test"
+    And I click on "#payway-cc-submit" "css_element"
+    Then I wait until "Payment could not be completed" "text" exists
+    And I should not see "Stolen card"
+    And "#payway-cc-submit" "css_element" should be visible

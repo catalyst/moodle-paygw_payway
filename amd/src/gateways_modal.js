@@ -71,6 +71,24 @@ const callbackToPromise = (callbackFn) => new Promise((resolve, reject) => {
 });
 
 /**
+ * Create a UUID v4 for one PayWay payment request, including on HTTP test sites.
+ *
+ * @returns {string} A random UUID v4
+ */
+const newIdempotencyKey = () => {
+    if (window.crypto.randomUUID) {
+        return window.crypto.randomUUID();
+    }
+
+    // getRandomValues is available on insecure origins; never use Math.random for payment keys.
+    const bytes = window.crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] % 16) + 64;
+    bytes[8] = (bytes[8] % 64) + 128;
+    const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+
+/**
  * Create a controller for one PayWay modal instance.
  *
  * The controller owns its state and lifecycle. Callers interact with methods rather than passing
@@ -155,6 +173,20 @@ const createPaymentController = (modal, context) => {
         modalClosed,
     ]);
 
+    const waitForRetry = async(seconds) => {
+        // PayWay recommends waiting 20 seconds before retrying a transient
+        // transaction failure with the same Idempotency-Key:
+        // https://www.payway.com.au/docs/rest.html#basics-sending-requests
+        for (let remaining = seconds; remaining > 0; remaining--) {
+            state.error = await getString('paymentretryingcountdown', 'paygw_payway', remaining);
+            await updateModal();
+            await Promise.race([
+                new Promise(resolve => setTimeout(resolve, 1000)),
+                modalClosed,
+            ]);
+        }
+    };
+
     const attemptPayment = async(creditCardFrame, component, paymentArea, itemId) => {
         const [body] = await modal.getBodyPromise();
         const submitButton = getRequiredElement(body, '#payway-cc-submit');
@@ -164,17 +196,36 @@ const createPaymentController = (modal, context) => {
 
         try {
             await updateModal();
+            // Only automatic retries reuse this key and token.
+            const idempotencykey = newIdempotencyKey();
             const {singleUseTokenId} = await Promise.race([
                 callbackToPromise((callback) => creditCardFrame.getToken(callback)),
                 modalClosed,
             ]);
-            const response = await Promise.race([
-                processPayment(component, paymentArea, itemId, singleUseTokenId),
+            let response = await Promise.race([
+                processPayment(component, paymentArea, itemId, singleUseTokenId, idempotencykey),
                 modalClosed,
             ]);
 
+            if (response.status === 'retry') {
+                // Retry request exactly once.
+                await waitForRetry(response.retryafter ?? 20);
+                response = await Promise.race([
+                    processPayment(component, paymentArea, itemId, singleUseTokenId, idempotencykey),
+                    modalClosed,
+                ]);
+                // We retried once and its asking to retry again,
+                // we give up at this point.
+                if (response.status === 'retry') {
+                    response = {
+                        status: 'error',
+                        message: await getString('paymentretryfailed', 'paygw_payway'),
+                    };
+                }
+            }
+
             if (response.status !== 'ok') {
-                state.error = response.status;
+                state.error = response.message;
                 return false;
             }
 

@@ -17,7 +17,8 @@
 namespace paygw_payway;
 
 use advanced_testcase;
-use paygw_payway\local\api_credential;
+use paygw_payway\local\api_configuration;
+use paygw_payway\local\api_response;
 use paygw_payway\local\environment;
 use paygw_payway\local\payway_api;
 use ReflectionMethod;
@@ -38,10 +39,12 @@ final class payway_api_test extends advanced_testcase {
      * @return void
      */
     public function test_prepare_secret_authorization_curl_options_uses_basic_auth(): void {
-        $api = new payway_api(new api_credential(
+        $api = new payway_api(new api_configuration(
             'APPLICATION_PUBLISHABLE_abcdefg',
             'APPLICATION_SECRET_uvwxyz',
             environment::Sandbox,
+            'TEST',
+            null,
         ));
 
         $method = new ReflectionMethod(payway_api::class, 'prepare_secret_authorization_curl_options');
@@ -60,17 +63,54 @@ final class payway_api_test extends advanced_testcase {
     public function test_test_secret_key_returns_status_code_from_api(): void {
         $api = $this->getMockBuilder(payway_api::class)
             ->setConstructorArgs([
-                new api_credential(
+                new api_configuration(
                     'APPLICATION_PUBLISHABLE_abcdefg',
                     'APPLICATION_SECRET_uvwxyz',
                     environment::Sandbox,
+                    'TEST',
+                    null,
                 ),
             ])
-            ->onlyMethods(['secret_authorized_get'])
+            ->onlyMethods(['secret_authorized_request'])
             ->getMock();
 
-        $api->method('secret_authorized_get')->willReturn(['http_code' => 201]);
+        $api->method('secret_authorized_request')->willReturn(new api_response(201, ''));
 
         $this->assertSame(201, $api->test_secret_key());
+    }
+
+    public function test_process_payment_sends_idempotency_key_as_header(): void {
+        $api = $this->getMockBuilder(payway_api::class)
+            ->setConstructorArgs([
+                new api_configuration(
+                    'APPLICATION_PUBLISHABLE_abcdefg',
+                    'APPLICATION_SECRET_uvwxyz',
+                    environment::Sandbox,
+                    'TEST',
+                    null,
+                ),
+            ])
+            ->onlyMethods(['secret_authorized_request'])
+            ->getMock();
+
+        $api->expects($this->once())
+            ->method('secret_authorized_request')
+            ->with(
+                'POST',
+                payway_api::API_BASE_URL . '/transactions',
+                $this->callback(function (array $params): bool {
+                    return $params['singleUseTokenId'] === 'single-use-token'
+                        && $params['customerNumber'] === 96
+                        && $params['principalAmount'] === 10.5
+                        && $params['merchantId'] === 'TEST';
+                }),
+                payway_api::DEFAULT_TIMEOUT,
+                ['Idempotency-Key: payment-attempt-key'],
+            )
+            ->willReturn(new api_response(201, '{}'));
+
+        $response = $api->process_payment('single-use-token', 'payment-attempt-key', 10.5, 96);
+
+        $this->assertSame(201, $response->httpcode);
     }
 }

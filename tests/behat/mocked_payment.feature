@@ -20,6 +20,7 @@ Feature: Paying with the PayWay gateway (mocked)
     And I am on course index
     And I follow "Course 1"
     And the PayWay JS library is mocked
+    And PayWay API response sequence is "approved"
 
   Scenario: Opening and closing the payment modal repeatedly does not break the flow
     When I press "Select payment type"
@@ -62,7 +63,7 @@ Feature: Paying with the PayWay gateway (mocked)
     And ".modal.show [data-region='gateways-container'] .payway" "css_element" should be visible
     And I click on ".modal.show [data-action='proceed']" "css_element"
     And I click on "#payway-cc-submit" "css_element"
-    Then I should see "Payment successful"
+    Then I wait for PayWay payment success
     And I click on "Enter course" "button"
     And I should see "Course 1"
 
@@ -84,7 +85,7 @@ Feature: Paying with the PayWay gateway (mocked)
     And I wait until ".modal.show [data-region='gateways-container'] .payway" "css_element" exists
     And I click on ".modal.show [data-action='proceed']" "css_element"
     And I click on "#payway-cc-submit" "css_element"
-    And I should see "Payment successful"
+    And I wait for PayWay payment success
     And I click on "Close" "button" in the "Pay using Westpac PayWay" "dialogue"
     Then the url should match "/course/view\.php\?id=[0-9]+$"
     And I should see "Course 1"
@@ -99,3 +100,69 @@ Feature: Paying with the PayWay gateway (mocked)
     Then I should see "Unable to load the credit card payment form" in the "#payway-cc-error" "css_element"
     And "#payway-cc-submit" "css_element" should be visible
     And the "disabled" attribute of "#payway-cc-submit" "css_element" should not be set
+
+  Scenario: A retryable PayWay failure is retried once with the same payment attempt
+    Given PayWay retry delay is "1" second
+    And PayWay API response sequence is "retry,approved"
+    When I press "Select payment type"
+    And I wait until ".modal.show [data-region='gateways-container'] .payway" "css_element" exists
+    And I click on ".modal.show [data-action='proceed']" "css_element"
+    And I click on "#payway-cc-submit" "css_element"
+    And I wait until "The payment service is temporarily busy. Retrying in 1 seconds." "text" exists
+    And the "disabled" attribute of "#payway-cc-submit" "css_element" should be set
+    Then I wait for PayWay payment success
+    And PayWay should have retried the same payment request
+
+  Scenario: A retryable PayWay failure stops after one retry
+    Given PayWay retry delay is "1" second
+    And PayWay API response sequence is "retry,retry"
+    When I press "Select payment type"
+    And I wait until ".modal.show [data-region='gateways-container'] .payway" "css_element" exists
+    And I click on ".modal.show [data-action='proceed']" "css_element"
+    And I click on "#payway-cc-submit" "css_element"
+    Then I wait until "The payment service is still unavailable" "text" exists
+
+  Scenario: A declined PayWay response shows a generic error and keeps the form available
+    Given PayWay API response sequence is "declined"
+    When I press "Select payment type"
+    And I wait until ".modal.show [data-region='gateways-container'] .payway" "css_element" exists
+    And I click on ".modal.show [data-action='proceed']" "css_element"
+    And I click on "#payway-cc-submit" "css_element"
+    Then I wait until "Payment could not be completed" "text" exists
+    And "#payway-cc-submit" "css_element" should be visible
+
+  Scenario: A new submission after a declined payment can succeed
+    Given PayWay API response sequence is "declined,approved"
+    When I press "Select payment type"
+    And I wait until ".modal.show [data-region='gateways-container'] .payway" "css_element" exists
+    And I click on ".modal.show [data-action='proceed']" "css_element"
+    And I click on "#payway-cc-submit" "css_element"
+    And I wait until "Payment could not be completed" "text" exists
+    And I click on "#payway-cc-submit" "css_element"
+    Then I wait for PayWay payment success
+    And PayWay should have used distinct payment keys
+
+  Scenario: A pending PayWay response delivers the order and completes the flow
+    Given PayWay API response sequence is "pending"
+    When I press "Select payment type"
+    And I wait until ".modal.show [data-region='gateways-container'] .payway" "css_element" exists
+    And I click on ".modal.show [data-action='proceed']" "css_element"
+    And I click on "#payway-cc-submit" "css_element"
+    Then I wait for PayWay payment success
+
+  Scenario: A successful but unusable PayWay response keeps the payment available for review
+    Given PayWay API response sequence is "responseerror"
+    When I press "Select payment type"
+    And I wait until ".modal.show [data-region='gateways-container'] .payway" "css_element" exists
+    And I click on ".modal.show [data-action='proceed']" "css_element"
+    And I click on "#payway-cc-submit" "css_element"
+    Then I wait until "Unexpected payment response from PayWay API" "text" exists
+
+  Scenario: A PayWay network failure warns that a duplicate payment may have occurred
+    Given PayWay retry delay is "1" second
+    And PayWay API response sequence is "networkerror,networkerror"
+    When I press "Select payment type"
+    And I wait until ".modal.show [data-region='gateways-container'] .payway" "css_element" exists
+    And I click on ".modal.show [data-action='proceed']" "css_element"
+    And I click on "#payway-cc-submit" "css_element"
+    Then I wait until "The payment service is still unavailable" "text" exists

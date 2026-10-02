@@ -16,7 +16,7 @@
 
 namespace paygw_payway;
 
-use paygw_payway\local\api_credential;
+use paygw_payway\local\api_configuration;
 use paygw_payway\local\environment;
 use coding_exception;
 use ValueError;
@@ -63,13 +63,24 @@ class gateway extends \core_payment\gateway {
         $mform->addHelpButton('secretkey', 'secretkey', 'paygw_payway');
         $mform->addRule('secretkey', null, 'required');
 
-        $mform->addElement('static', 'secretkeystatuscheck', '', get_string('secretkeystatuscheck', 'paygw_payway'));
-
         $environments = array_column(environment::cases(), 'value');
         $environmentlabels = array_map(fn($env) => get_string('environment:' . $env, 'paygw_payway'), $environments);
         $options = array_combine($environments, $environmentlabels);
         $mform->addElement('select', 'environment', get_string('environment', 'paygw_payway'), $options);
         $mform->addHelpButton('environment', 'environment', 'paygw_payway');
+        $mform->addRule('environment', null, 'required');
+
+        $mform->addElement('text', 'merchantid', get_string('merchantid', 'paygw_payway'));
+        $mform->setType('merchantid', PARAM_TEXT);
+        $mform->addHelpButton('merchantid', 'merchantid', 'paygw_payway');
+        $mform->addRule('merchantid', null, 'required');
+
+        $mform->addElement('static', 'gatewaystatuscheck', '', get_string('gatewaystatuscheck', 'paygw_payway'));
+
+        $mform->addElement('text', 'notificationemail', get_string('notificationemail', 'paygw_payway'));
+        $mform->setType('notificationemail', PARAM_EMAIL);
+        $mform->addHelpButton('notificationemail', 'notificationemail', 'paygw_payway');
+        $mform->addRule('notificationemail', null, 'email', null, 'client');
     }
 
     /**
@@ -86,23 +97,37 @@ class gateway extends \core_payment\gateway {
         array $files,
         array &$errors
     ): void {
-        // Check environment is one the enums values.
-        if (environment::tryFrom($data->environment) === null) {
-            $errors['environment'] = get_string('error:environment', 'paygw_payway');
+        // Here, we offload all validation to the api_configuration class to keep
+        // the validation in sync with elsewhere in the app.
+
+        $envresult = api_configuration::validate_and_parse_environment($data->environment);
+        if ($envresult->is_err()) {
+            $errors['environment'] = $envresult->error;
+        } else {
+            $environment = $envresult->unwrap();
         }
 
-        // Check key formatting is good for both keys.
-        $secretkeyvalidation = api_credential::parse_and_validate_key_name($data->secretkey, api_credential::TYPE_SECRET);
+        if (isset($environment)) {
+            $merchantresult = api_configuration::validate_merchantid($data->merchantid, $environment);
+            if ($merchantresult->is_err()) {
+                $errors['merchantid'] = $merchantresult->error;
+            }
+        }
+
+        $secretkeyvalidation = api_configuration::parse_and_validate_key_name(
+            $data->secretkey,
+            api_configuration::KEY_TYPE_SECRET
+        );
         if ($secretkeyvalidation->is_err()) {
-            $errors['secretkey'] = get_string('error:invalidkey', 'paygw_payway', $secretkeyvalidation->error);
+            $errors['secretkey'] = $secretkeyvalidation->error;
         }
 
-        $publishablekeyverification = api_credential::parse_and_validate_key_name(
+        $publishablekeyverification = api_configuration::parse_and_validate_key_name(
             $data->publishablekey,
-            api_credential::TYPE_PUBLISHABLE
+            api_configuration::KEY_TYPE_PUBLISHABLE
         );
         if ($publishablekeyverification->is_err()) {
-            $errors['publishablekey'] = get_string('error:invalidkey', 'paygw_payway', $publishablekeyverification->error);
+            $errors['publishablekey'] = $publishablekeyverification->error;
         }
     }
 }
