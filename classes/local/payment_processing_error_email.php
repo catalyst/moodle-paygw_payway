@@ -53,7 +53,10 @@ final class payment_processing_error_email {
             'userid' => (int) $user->id,
             'item' => "$component / $paymentarea / $itemid",
             'details' => array_map(
-                fn(string $label, mixed $value): array => ['label' => $label, 'value' => (string) $value],
+                fn(string $label, mixed $value): array => [
+                    'label' => $label,
+                    'value' => is_string($value) ? $value : json_encode($value, JSON_THROW_ON_ERROR),
+                ],
                 array_keys($details),
                 array_values($details),
             ),
