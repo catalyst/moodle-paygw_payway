@@ -133,39 +133,8 @@ class process_payment extends external_api {
         }
 
         try {
-            $mocksequence = defined('BEHAT_SITE_RUNNING')
-                ? get_config('paygw_payway', 'behat_mock_payment_response_sequence')
-                : '';
-            if (!empty($mocksequence)) {
-                $sequence = json_decode($mocksequence, true, flags: JSON_THROW_ON_ERROR);
-                $mockstatus = array_shift($sequence);
-                set_config('behat_mock_payment_response_sequence', json_encode($sequence), 'paygw_payway');
-                $attempts = json_decode(get_config('paygw_payway', 'behat_payment_attempts') ?: '[]', true);
-                $attempts[] = ['token' => $token, 'idempotencykey' => $idempotencykey];
-                set_config('behat_payment_attempts', json_encode($attempts), 'paygw_payway');
-
-                $paymentbody = json_encode([
-                    'transactionId' => 123,
-                    'receiptNumber' => 456,
-                    'status' => in_array($mockstatus, ['approved', 'approved*', 'pending', 'declined', 'voided', 'suspended'])
-                        ? $mockstatus : 'declined',
-                    'responseCode' => '08',
-                    'responseText' => 'Mock PayWay response',
-                ], JSON_THROW_ON_ERROR);
-                $mockhttpcode = match ($mockstatus) {
-                    'retry' => 503,
-                    'invalid' => 422,
-                    'servererror' => 500,
-                    'networkerror' => 0,
-                    'responseerror' => 201,
-                    default => 201,
-                };
-                $res = new api_response(
-                    $mockhttpcode,
-                    $mockstatus === 'responseerror' ? '{"unexpected":"response"}' :
-                        ($mockhttpcode === 201 ? $paymentbody : '{}'),
-                    $mockstatus === 'networkerror' ? 28 : 0,
-                );
+            if (defined('BEHAT_SITE_RUNNING')) {
+                $res = self::get_behat_mock_payment_response($token, $idempotencykey);
             } else {
                 $res = $api->process_payment(
                     singleusetoken: $token,
@@ -300,6 +269,47 @@ class process_payment extends external_api {
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * Return the next configured mock response for Behat, if one is configured.
+     *
+     * @param string $token PayWay single-use token
+     * @param string $idempotencykey PayWay idempotency key
+     * @return api_response
+     */
+    private static function get_behat_mock_payment_response(string $token, string $idempotencykey): api_response {
+        $mocksequence = get_config('paygw_payway', 'behat_mock_payment_response_sequence');
+        $sequence = json_decode($mocksequence, true, flags: JSON_THROW_ON_ERROR);
+        $mockstatus = array_shift($sequence);
+        set_config('behat_mock_payment_response_sequence', json_encode($sequence), 'paygw_payway');
+        $attempts = json_decode(get_config('paygw_payway', 'behat_payment_attempts') ?: '[]', true);
+        $attempts[] = ['token' => $token, 'idempotencykey' => $idempotencykey];
+        set_config('behat_payment_attempts', json_encode($attempts), 'paygw_payway');
+
+        $paymentbody = json_encode([
+            'transactionId' => 123,
+            'receiptNumber' => 456,
+            'status' => in_array($mockstatus, ['approved', 'approved*', 'pending', 'declined', 'voided', 'suspended'])
+                ? $mockstatus : 'declined',
+            'responseCode' => '08',
+            'responseText' => 'Mock PayWay response',
+        ], JSON_THROW_ON_ERROR);
+        $mockhttpcode = match ($mockstatus) {
+            'retry' => 503,
+            'invalid' => 422,
+            'servererror' => 500,
+            'networkerror' => 0,
+            'responseerror' => 201,
+            default => 201,
+        };
+
+        return new api_response(
+            $mockhttpcode,
+            $mockstatus === 'responseerror' ? '{"unexpected":"response"}' :
+                ($mockhttpcode === 201 ? $paymentbody : '{}'),
+            $mockstatus === 'networkerror' ? 28 : 0,
+        );
     }
 
     /**
