@@ -31,6 +31,23 @@ use paygw_payway\local\environment;
  */
 final class gateway_test extends advanced_testcase {
     /**
+     * The configuration lock is exclusive and can be acquired again after release.
+     *
+     * @return void
+     */
+    public function test_configuration_lock_is_exclusive_and_reusable(): void {
+        $lock = gateway::get_configuration_lock(12345);
+        $this->assertNotFalse($lock);
+        $this->assertFalse(gateway::get_configuration_lock(12345));
+
+        $lock->release();
+
+        $releasedlock = gateway::get_configuration_lock(12345);
+        $this->assertNotFalse($releasedlock);
+        $releasedlock->release();
+    }
+
+    /**
      * Get a stub form instance - validate_gateway_form does not use it directly, only its type.
      *
      * @return account_gateway

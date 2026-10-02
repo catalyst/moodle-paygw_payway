@@ -13,8 +13,8 @@ class check_token_renewal extends scheduled_task {
     public function execute() {
         global $DB;
 
-        // For each paygw, spawn an adhoc task to check their corresponding token.
-        $gateways = $DB->get_records('payment_gateways', ['gateway' => 'payway'], 'id');
+        // For each enabled payway paygw, spawn an adhoc task to check their corresponding token.
+        $gateways = $DB->get_records('payment_gateways', ['gateway' => 'payway', 'enabled' => true], 'id');
         foreach ($gateways as $gateway) {
             $task = new check_token_renewal_adhoc();
             $task->set_custom_data(['gatewayid' => $gateway->id]);

@@ -50,6 +50,7 @@ $string['error:paymentsetupfailed'] = 'Unable to load the credit card payment fo
 $string['failedpayment'] = 'Payment could not be completed. Please check your details or try another card.';
 $string['gatewaydescription'] = 'Pay using your credit card using Westpac PayWay';
 $string['gatewayname'] = 'PayWay';
+$string['configurationlocked'] = 'The configuration is currently locked by another task (most likely secret key auto rotation). Please try again shortly.';
 $string['gatewaystatuscheck'] = '<a href="/report/status/index.php?detail=paygw_payway_gateway">Check gateway validation.</a>';
 $string['invalidenvironment'] = 'Invalid environment value: {$a}';
 $string['livemerchantidinvalidformat'] = 'When in live environment, the merchant id must be 8 numeric digits, was {$a}';

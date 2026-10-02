@@ -36,6 +36,76 @@ use Behat\Mink\Exception\ExpectationException;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class behat_paygw_payway extends behat_base {
+    /** @var \core\lock\lock|null Lock held for the current scenario. */
+    private $configurationlock;
+
+    /**
+     * Open the PayWay gateway settings page for a payment account.
+     *
+     * @Given /^I am on the PayWay configuration page for payment account "(?P<account_name>(?:[^"]|\\")*)"$/
+     * @param string $accountname
+     */
+    public function i_am_on_payway_configuration_page(string $accountname): void {
+        global $DB;
+        $accountid = $DB->get_field('payment_accounts', 'id', ['name' => $accountname], MUST_EXIST);
+        $gatewayid = $DB->get_field('payment_gateways', 'id', [
+            'accountid' => $accountid,
+            'gateway' => 'payway',
+        ], MUST_EXIST);
+        $url = new moodle_url('/payment/manage_gateway.php', ['id' => $gatewayid]);
+        $this->getSession()->visit($this->locate_path($url->out_as_local_url(false)));
+    }
+
+    /**
+     * Hold the configuration lock while the browser submits the settings form.
+     *
+     * @Given /^the PayWay configuration lock is held for payment account "(?P<account_name>(?:[^"]|\\")*)"$/
+     * @param string $accountname
+     */
+    public function the_payway_configuration_lock_is_held(string $accountname): void {
+        global $DB;
+        $accountid = $DB->get_field('payment_accounts', 'id', ['name' => $accountname], MUST_EXIST);
+        $gatewayid = $DB->get_field('payment_gateways', 'id', [
+            'accountid' => $accountid,
+            'gateway' => 'payway',
+        ], MUST_EXIST);
+        $this->configurationlock = \paygw_payway\gateway::get_configuration_lock($gatewayid);
+        if (!$this->configurationlock) {
+            throw new ExpectationException('Could not acquire the PayWay configuration lock.', $this->getSession());
+        }
+    }
+
+    /**
+     * Release the configuration lock held by the current scenario.
+     *
+     * @Given /^the PayWay configuration lock is released$/
+     */
+    public function the_payway_configuration_lock_is_released(): void {
+        if ($this->configurationlock) {
+            $this->configurationlock->release();
+            $this->configurationlock = null;
+        }
+    }
+
+    /**
+     * Verify that the PayWay configuration lock is exclusive and released correctly.
+     *
+     * @Given /^the PayWay configuration lock can be acquired and released$/
+     */
+    public function the_payway_configuration_lock_can_be_acquired_and_released(): void {
+        $lock = \paygw_payway\gateway::get_configuration_lock(12345);
+        if (!$lock) {
+            throw new ExpectationException('Could not acquire the PayWay configuration lock.', $this->getSession());
+        }
+        $lock->release();
+
+        $lock = \paygw_payway\gateway::get_configuration_lock(12345);
+        if (!$lock) {
+            throw new ExpectationException('The PayWay configuration lock was not released.', $this->getSession());
+        }
+        $lock->release();
+    }
+
     /**
      * Configure the PayWay gateway for a payment account with placeholder credentials.
      * Since processing is mocked/forced in these scenarios, the credentials themselves are never used.

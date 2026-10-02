@@ -62,8 +62,13 @@ class payway_api {
      * @return int http status code returned from a test query
      */
     public function test_secret_key(int $timeout = self::DEFAULT_TIMEOUT): int {
+        // TODO we should probably rework this to return api_response - because other things .eg. curl network error could be returned?
         // PayWay docs specify to test API token, do a GET request on the base url.
         return $this->secret_authorized_request('GET', self::API_BASE_URL, [], $timeout)->httpcode ?: 500;
+    }
+
+    public function get_latest_api_key(int $timeout = self::DEFAULT_TIMEOUT): api_response {
+        return $this->secret_authorized_request('GET', self::API_BASE_URL . '/api-keys/latest', [], $timeout);
     }
 
     /**

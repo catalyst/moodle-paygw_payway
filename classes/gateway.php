@@ -31,6 +31,18 @@ use ValueError;
  */
 class gateway extends \core_payment\gateway {
     /**
+     * Acquire the lock used while a gateway configuration is being changed.
+     *
+     * @param int $gatewayid gateway id, or account id when creating a gateway
+     * @param int $timeout lock acquisition timeout in seconds
+     * @return \core\lock\lock|false
+     */
+    public static function get_configuration_lock(int $gatewayid, int $timeout = 0) {
+        $lockfactory = \core\lock\lock_config::get_lock_factory('paygw_payway');
+        return $lockfactory->get_lock('gateway_config:' . $gatewayid, $timeout);
+    }
+
+    /**
      * Supported currencies list
      * @return array
      */
@@ -62,6 +74,8 @@ class gateway extends \core_payment\gateway {
         $mform->setType('secretkey', PARAM_TEXT);
         $mform->addHelpButton('secretkey', 'secretkey', 'paygw_payway');
         $mform->addRule('secretkey', null, 'required');
+
+        // TODO add help text RE auto renewal 40 days before expiry + link to adhoc task page ?
 
         $environments = array_column(environment::cases(), 'value');
         $environmentlabels = array_map(fn($env) => get_string('environment:' . $env, 'paygw_payway'), $environments);
@@ -111,6 +125,15 @@ class gateway extends \core_payment\gateway {
             $merchantresult = api_configuration::validate_merchantid($data->merchantid, $environment);
             if ($merchantresult->is_err()) {
                 $errors['merchantid'] = $merchantresult->error;
+            }
+        }
+
+        if (!empty($data->id)) {
+            $lock = self::get_configuration_lock((int)$data->id);
+            if (!$lock) {
+                $errors['secretkey'] = get_string('configurationlocked', 'paygw_payway');
+            } else {
+                $lock->release();
             }
         }
 
