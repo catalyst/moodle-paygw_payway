@@ -79,3 +79,4 @@ $string['sandboxhint'] = 'SANDBOX: <a href="https://www.payway.com.au/docs/net.h
 $string['sandboxmerchantidmustbetest'] = 'When in sandbox environment, the merchant id must be "TEST", was {$a}';
 $string['secretkey'] = 'Secret API key';
 $string['secretkey_help'] = 'Your secret API key allows your server to process payments and provides full access to the API. It is usually in the form TXXXXX_SEC_xxxx';
+$string['task:checktokenrenewal'] = 'Check for new API token';
