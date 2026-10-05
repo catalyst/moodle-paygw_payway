@@ -15,7 +15,7 @@ Moodle payment gateway plugin for Westpac PayWay
 # Important
 This plugin processes credit/debit card payments in conjunction with Westpac PayWay. It is important to note what this plugin will do when certain statuses are returned. [See the full list of statuses in the PayWay API Documentation](https://www.payway.com.au/docs/rest.html#transaction-status).
 
-While most credit/debit card payments will return either `approved` or `denied`, it is technically possible to return other statuses. Most of these statuses usually occur when processing bank account payments (which are not supported), however, in the case of any of these statuses are encountered, the plugin will handle them as follows:
+While most credit/debit card payments will return either `approved` or `declined`, it is technically possible to return other statuses. Most of these statuses usually occur when processing bank account payments (which are not supported), however, in the case of any of these statuses are encountered, the plugin will handle them as follows:
 
 | Status      | Explanation                                                                    | Will the order be delivered    | Will a follow up notification be sent |
 |-------------|--------------------------------------------------------------------------------|--------------------------------|---------------------------------------|
