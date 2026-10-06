@@ -60,7 +60,7 @@ final class payway_api_test extends advanced_testcase {
      *
      * @return void
      */
-    public function test_get_base_url_returns_full_api_response(): void {
+    public function test_request_base_url_get_returns_full_api_response(): void {
         $api = $this->getMockBuilder(payway_api::class)
             ->setConstructorArgs([
                 new api_configuration(
@@ -76,7 +76,7 @@ final class payway_api_test extends advanced_testcase {
 
         $api->method('secret_authorized_request')->willReturn(new api_response(201, ''));
 
-        $response = $api->get_base_url();
+        $response = $api->request_base_url_get();
         $this->assertSame(201, $response->httpcode);
     }
 
@@ -98,10 +98,10 @@ final class payway_api_test extends advanced_testcase {
                     null,
                 ),
             ])
-            ->onlyMethods(['get_base_url'])
+            ->onlyMethods(['request_base_url_get'])
             ->getMock();
 
-        $api->method('get_base_url')->willReturn($response);
+        $api->method('request_base_url_get')->willReturn($response);
         $result = $api->test_is_secret_key_valid();
 
         if ($isvalid) {
