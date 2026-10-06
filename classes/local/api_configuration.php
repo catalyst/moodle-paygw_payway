@@ -40,6 +40,7 @@ class api_configuration {
      * @param environment $environment the environment
      * @param string $merchantid the merchant id
      * @param string|null $notificationemail email address for payment notifications, if configured
+    * @param custom_fields $customfields parsed custom-field mappings
      */
     public function __construct(
         /** @var string $publishablekey the public key */
@@ -52,6 +53,8 @@ class api_configuration {
         public readonly string $merchantid,
         /** @var string|null $notificationemail email address for payment notifications, if configured */
         public readonly string|null $notificationemail,
+        /** @var custom_fields Parsed transaction custom-field mappings. */
+        public readonly custom_fields $customfields,
     ) {
     }
 
@@ -165,12 +168,18 @@ class api_configuration {
             return $merchantidresult;
         }
 
+        $customfieldsresult = custom_fields::validate_and_parse_stored_config($data);
+        if ($customfieldsresult->is_err()) {
+            return $customfieldsresult;
+        }
+
         return result::ok(new api_configuration(
             publishablekey: $publishablekey,
             secretkey: $secretkey,
             environment: $environment,
             merchantid: $merchantid,
             notificationemail: $notificationemail,
+            customfields: $customfieldsresult->unwrap(),
         ));
     }
 

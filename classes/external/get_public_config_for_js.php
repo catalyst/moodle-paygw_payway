@@ -32,6 +32,7 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_value;
 use core_external\external_single_structure;
+use paygw_payway\local\api_configuration;
 use paygw_payway\local\environment;
 
 /**
@@ -74,13 +75,18 @@ class get_public_config_for_js extends external_api {
             }
         }
 
-        $config = helper::get_gateway_configuration($component, $paymentarea, $itemid, 'payway');
+        $configuration = api_configuration::from_stored_config((object) helper::get_gateway_configuration(
+            $component,
+            $paymentarea,
+            $itemid,
+            'payway'
+        ));
         $payable = helper::get_payable($component, $paymentarea, $itemid);
         $surcharge = helper::get_gateway_surcharge('payway');
 
         return [
-            'publishablekey' => $config['publishablekey'],
-            'sandbox' => ($config['environment'] ?? null) === environment::Sandbox->value,
+            'publishablekey' => $configuration->publishablekey,
+            'sandbox' => $configuration->environment === environment::Sandbox,
             'cost' => helper::get_rounded_cost($payable->get_amount(), $payable->get_currency(), $surcharge),
             'currency' => $payable->get_currency(),
         ];

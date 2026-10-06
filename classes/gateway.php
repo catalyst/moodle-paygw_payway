@@ -106,6 +106,8 @@ class gateway extends \core_payment\gateway {
         $mform->setType('notificationemail', PARAM_EMAIL);
         $mform->addHelpButton('notificationemail', 'notificationemail', 'paygw_payway');
         $mform->addRule('notificationemail', null, 'email', null, 'client');
+
+        \paygw_payway\form\payway_customfield_options::add_to_form($form);
     }
 
     /**
@@ -153,6 +155,29 @@ class gateway extends \core_payment\gateway {
         );
         if ($publishablekeyverification->is_err()) {
             $errors['publishablekey'] = $publishablekeyverification->error;
+        }
+
+        // Validate against the submitted credentials, which may differ from those
+        // used to discover the fields when the form was first opened.
+        $mappingresult = \paygw_payway\local\custom_fields::validate_and_parse_stored_config($data);
+        if ($mappingresult->is_err()) {
+            $errors['customfieldsnotice'] = $mappingresult->error;
+        }
+        if (!$errors && $mappingresult->unwrap()->has_mappings()) {
+            $credentials = api_configuration::validate_and_parse_stored_config($data);
+            if ($credentials->is_ok()) {
+                $configuration = $credentials->unwrap();
+                $fields = \paygw_payway\local\payway_api::new($configuration)->get_custom_fields();
+                if ($fields->is_err()) {
+                    $errors['customfieldsnotice'] = $fields->error;
+                } else {
+                    $mappingerrors = $configuration->customfields->validate($fields->unwrap());
+                    if ($mappingerrors) {
+                        // Includes removed fields that no longer have a visible selector.
+                        $errors['customfieldsnotice'] = implode(' ', $mappingerrors);
+                    }
+                }
+            }
         }
 
         // This is a bit hacky, but we also check if the configuration is locked atm,

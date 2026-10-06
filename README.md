@@ -7,6 +7,7 @@ Moodle payment gateway plugin for Westpac PayWay
 ## Supported
 - Credit/Debit card payments
 - Automated token renewal
+- Transaction custom fields
 
 ## Not Supported
 - 3DSecure

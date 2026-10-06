@@ -40,6 +40,199 @@ class behat_paygw_payway extends behat_base {
     private $configurationlock;
 
     /**
+     * Mock the field discovery endpoint, including changes made after a mapping was saved.
+     *
+     * @Given /^PayWay has the following custom fields:$/
+     * @param \Behat\Gherkin\Node\TableNode $fields Slot and name definitions.
+     */
+    public function payway_has_custom_fields(\Behat\Gherkin\Node\TableNode $fields): void {
+        $definitions = [];
+        foreach ($fields->getHash() as $field) {
+            $definitions[] = [
+                'customFieldId' => (int)$field['slot'],
+                'fieldName' => $field['name'],
+                'help' => $field['help'] ?? '',
+            ];
+        }
+        set_config('behat_custom_fields', json_encode(['data' => $definitions], JSON_THROW_ON_ERROR), 'paygw_payway');
+        set_config('behat_custom_fields_unavailable', 0, 'paygw_payway');
+    }
+
+    /**
+     * Mock an empty facility configuration.
+     *
+     * @Given /^PayWay has no custom fields$/
+     */
+    public function payway_has_no_custom_fields(): void {
+        set_config('behat_custom_fields', '{"data":[]}', 'paygw_payway');
+        set_config('behat_custom_fields_unavailable', 0, 'paygw_payway');
+    }
+
+    /**
+     * Simulate a discovery outage without contacting PayWay.
+     *
+     * @Given /^PayWay custom field discovery is unavailable$/
+     */
+    public function payway_custom_field_discovery_is_unavailable(): void {
+        set_config('behat_custom_fields_unavailable', 1, 'paygw_payway');
+    }
+
+    /**
+     * Get the gateway used by a test account.
+     *
+     * @param string $accountname Payment account name.
+     * @return \stdClass Gateway record.
+     */
+    private function get_payway_gateway(string $accountname): \stdClass {
+        global $DB;
+        $accountid = $DB->get_field('payment_accounts', 'id', ['name' => $accountname], MUST_EXIST);
+        return $DB->get_record('payment_gateways', ['accountid' => $accountid, 'gateway' => 'payway'], '*', MUST_EXIST);
+    }
+
+    /**
+     * Resolve a fixture source such as profile:membership into its stable Moodle ID.
+     *
+     * @param string $source Standard source or custom profile shortname.
+     * @return string Stored source.
+     */
+    private function resolve_custom_field_source(string $source): string {
+        global $DB;
+        if (str_starts_with($source, 'profile:')) {
+            $id = $DB->get_field('user_info_field', 'id', ['shortname' => substr($source, 8)], MUST_EXIST);
+            return 'profile:' . $id;
+        }
+        return $source;
+    }
+
+    /**
+     * Seed named mappings for sending scenarios; configuration scenarios use the real form.
+     *
+     * @Given /^PayWay for payment account "([^"]*)" has the following mappings:$/
+     * @param string $accountname Payment account.
+     * @param \Behat\Gherkin\Node\TableNode $mappings Name and source pairs.
+     */
+    public function payway_has_mappings(string $accountname, \Behat\Gherkin\Node\TableNode $mappings): void {
+        $gateway = $this->get_payway_gateway($accountname);
+        $config = json_decode($gateway->config, true, flags: JSON_THROW_ON_ERROR);
+        $config['customfieldmappings'] = [];
+        foreach ($mappings->getHash() as $mapping) {
+            $key = \paygw_payway\local\custom_fields::get_field_key($mapping['name']);
+            $config['customfieldmappings'][$key] = [
+                'name' => $mapping['name'], 'source' => $this->resolve_custom_field_source($mapping['source']),
+            ];
+        }
+        \core_payment\helper::save_payment_gateway((object)[
+            'id' => $gateway->id, 'config' => json_encode($config, JSON_THROW_ON_ERROR),
+        ]);
+    }
+
+    /**
+     * Verify saved mappings, including that removed names have not survived a save.
+     *
+     * @Then /^PayWay for payment account "([^"]*)" should have exactly these mappings:$/
+     * @param string $accountname Payment account.
+     * @param \Behat\Gherkin\Node\TableNode $mappings Expected name and source pairs.
+     */
+    public function payway_should_have_mappings(string $accountname, \Behat\Gherkin\Node\TableNode $mappings): void {
+        $gateway = $this->get_payway_gateway($accountname);
+        $actual = \paygw_payway\local\api_configuration::from_stored_config(
+            json_decode($gateway->config, flags: JSON_THROW_ON_ERROR)
+        )->customfields->mappings;
+        $expected = [];
+        foreach ($mappings->getHash() as $mapping) {
+            $expected[$mapping['name']] = $this->resolve_custom_field_source($mapping['source']);
+        }
+        ksort($actual);
+        ksort($expected);
+        if ($actual !== $expected) {
+            throw new ExpectationException('Stored PayWay mappings differ: ' . json_encode($actual), $this->getSession());
+        }
+    }
+
+    /**
+     * Create a custom profile field and assign the paying user's value.
+     *
+     * @Given /^user "([^"]*)" has custom profile field "([^"]*)" named "([^"]*)" with value "([^"]*)"$/
+     * @param string $username User.
+     * @param string $shortname Profile field shortname.
+     * @param string $name Display name.
+     * @param string $value Saved value.
+     */
+    public function user_has_custom_profile_value(string $username, string $shortname, string $name, string $value): void {
+        global $DB;
+        $field = testing_util::get_data_generator()->create_custom_profile_field([
+            'shortname' => $shortname, 'name' => $name, 'datatype' => 'text',
+        ]);
+        $userid = $DB->get_field('user', 'id', ['username' => $username], MUST_EXIST);
+        $DB->insert_record('user_info_data', (object)[
+            'userid' => $userid, 'fieldid' => $field->id, 'data' => $value, 'dataformat' => 0,
+        ]);
+    }
+
+    /**
+     * Delete a local mapping source after configuration.
+     *
+     * @Given /^custom profile field "([^"]*)" is removed$/
+     * @param string $shortname Profile field shortname.
+     */
+    public function custom_profile_field_is_removed(string $shortname): void {
+        global $DB;
+        $id = $DB->get_field('user_info_field', 'id', ['shortname' => $shortname], MUST_EXIST);
+        $DB->delete_records('user_info_data', ['fieldid' => $id]);
+        $DB->delete_records('user_info_field', ['id' => $id]);
+    }
+
+    /**
+     * Submit through the actual payment UI using a mocked token.
+     *
+     * @When /^I submit a PayWay payment$/
+     */
+    public function submit_payway_payment(): void {
+        $this->execute('behat_forms::press_button', ['Select payment type']);
+        $this->execute('behat_general::wait_until_exists', [
+            '.modal.show [data-region="gateways-container"] .payway', 'css_element',
+        ]);
+        $this->execute('behat_general::i_click_on', ['.modal.show [data-action="proceed"]', 'css_element']);
+        $this->execute('behat_general::wait_until_exists', ['#payway-cc-submit', 'css_element']);
+        $this->execute('behat_general::i_click_on', ['#payway-cc-submit', 'css_element']);
+    }
+
+    /**
+     * Check the complete custom-field portion of the request sent to the mock transport.
+     *
+     * @Then /^PayWay should have sent exactly these custom fields:$/
+     * @param \Behat\Gherkin\Node\TableNode $fields Expected parameter and value pairs.
+     */
+    public function payway_should_have_sent_custom_fields(\Behat\Gherkin\Node\TableNode $fields): void {
+        $attempts = json_decode(get_config('paygw_payway', 'behat_payment_attempts') ?: '[]', true);
+        if (count($attempts) !== 1) {
+            throw new ExpectationException('Expected exactly one PayWay transaction.', $this->getSession());
+        }
+        $actual = array_filter($attempts[0]['params'], fn($key) => preg_match('/^customField[1-4]$/', $key), ARRAY_FILTER_USE_KEY);
+        $expected = [];
+        foreach ($fields->getHash() as $field) {
+            $expected[$field['parameter']] = $field['value'];
+        }
+        ksort($actual);
+        ksort($expected);
+        if ($actual !== $expected) {
+            throw new ExpectationException('Unexpected custom field payload: ' . json_encode($actual), $this->getSession());
+        }
+    }
+
+    /**
+     * Assert a validation failure prevented a transaction request.
+     *
+     * @Then /^PayWay should not have attempted a transaction$/
+     */
+    public function payway_should_not_have_attempted_transaction(): void {
+        $attempts = json_decode(get_config('paygw_payway', 'behat_payment_attempts') ?: '[]', true);
+        if ($attempts) {
+            throw new ExpectationException('PayWay attempted a transaction despite invalid mappings.', $this->getSession());
+        }
+    }
+
+    /**
      * Open the PayWay gateway settings page for a payment account.
      *
      * @Given /^I am on the PayWay configuration page for payment account "(?P<account_name>(?:[^"]|\\")*)"$/

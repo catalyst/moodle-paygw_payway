@@ -203,6 +203,8 @@ final class check_token_renewal_adhoc_test extends advanced_testcase {
              *
              * @param callable $apifactory API client factory.
              * @param bool $lockavailable Whether lock acquisition succeeds.
+             * @param \core\lock\lock|null $configurationlock Configuration lock returned by the mock.
+             * @param bool $configurationlockacquired Whether the task acquired the lock, updated by reference.
              */
             public function __construct(
                 callable $apifactory,

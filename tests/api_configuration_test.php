@@ -108,6 +108,52 @@ final class api_configuration_test extends advanced_testcase {
         $this->assertSame('APPLICATION_SEC_uvwxyz', $credential->secretkey);
         $this->assertSame(environment::Sandbox, $credential->environment);
         $this->assertSame('TEST', $credential->merchantid);
+        $this->assertSame([], $credential->customfields->mappings);
+    }
+
+    /**
+     * Parsed configuration includes immutable custom-field mappings.
+     */
+    public function test_from_stored_config_parses_custom_fields(): void {
+        $stored = (object)[
+            'publishablekey' => 'APPLICATION_PUB_abcdefg',
+            'secretkey' => 'APPLICATION_SEC_uvwxyz',
+            'environment' => environment::Sandbox->value,
+            'merchantid' => 'TEST',
+            'customfieldmappings' => (object)[
+                hash('sha256', 'Email') => (object)['name' => 'Email', 'source' => 'user:email'],
+                hash('sha256', 'Department') => (object)['name' => 'Department', 'source' => ''],
+                hash('sha256', 'Membership') => (object)['name' => 'Membership', 'source' => 'profile:999999'],
+            ],
+        ];
+        $configuration = api_configuration::from_stored_config($stored);
+        // Keep stale sources for subsequent validation and editing.
+        $this->assertSame(['Email' => 'user:email', 'Membership' => 'profile:999999'], $configuration->customfields->mappings);
+        $stored->customfieldmappings->{hash('sha256', 'Email')}->source = 'user:firstname';
+        $this->assertSame('user:email', $configuration->customfields->mappings['Email']);
+
+        $stored->customfieldmappings->{hash('sha256', 'Membership')}->source = ['profile:999999'];
+        $result = api_configuration::validate_and_parse_stored_config($stored);
+        $this->assertTrue($result->is_err());
+        $this->assertSame(get_string('customfieldmappinginvalid', 'paygw_payway'), $result->error);
+    }
+
+    /**
+     * The record key must hash the exact name, not a normalised variant.
+     */
+    public function test_from_stored_config_rejects_mismatched_name_hash(): void {
+        $stored = (object)[
+            'publishablekey' => 'APPLICATION_PUB_abcdefg',
+            'secretkey' => 'APPLICATION_SEC_uvwxyz',
+            'environment' => environment::Sandbox->value,
+            'merchantid' => 'TEST',
+            'customfieldmappings' => (object)[
+                hash('sha256', 'Membership') => ['name' => 'membership', 'source' => 'user:idnumber'],
+            ],
+        ];
+        $result = api_configuration::validate_and_parse_stored_config($stored);
+        $this->assertTrue($result->is_err());
+        $this->assertSame(get_string('customfieldmappinginvalid', 'paygw_payway'), $result->error);
     }
 
     /**
