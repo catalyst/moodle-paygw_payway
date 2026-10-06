@@ -28,7 +28,6 @@ use invalid_parameter_exception;
 use moodle_exception;
 use core\lock\lock_config;
 use paygw_payway\local\api_configuration;
-use paygw_payway\local\api_response;
 use paygw_payway\local\payment;
 use paygw_payway\local\payway_api;
 use paygw_payway\local\payment_processing_error_email;
@@ -101,9 +100,13 @@ class process_payment extends external_api {
         }
 
         // Lookup the payment gateway to get credentials.
-        $config = payment_helper::get_gateway_configuration($component, $paymentarea, $itemid, 'payway');
+        $credentials = api_configuration::from_stored_config((object) payment_helper::get_gateway_configuration(
+            $component,
+            $paymentarea,
+            $itemid,
+            'payway'
+        ));
         $payable = payment_helper::get_payable($component, $paymentarea, $itemid);
-        $credentials = api_configuration::from_stored_config((object) $config);
         $api = payway_api::new($credentials);
         $notifyprocessingerror = function (string $intro, array $details)
  use ($credentials, $USER, $component, $paymentarea, $itemid): void {
@@ -133,17 +136,28 @@ class process_payment extends external_api {
         }
 
         try {
-            if (defined('BEHAT_SITE_RUNNING') && !get_config('paygw_payway', 'behat_use_real_payment_api')) {
-                $res = self::get_behat_mock_payment_response($token, $idempotencykey);
-            } else {
-                $res = $api->process_payment(
-                    singleusetoken: $token,
-                    idempotencykey: $idempotencykey,
-                    price: (float) $payable->get_amount(),
-                    // This can be anything, it's for our reference only.
-                    customernumber: (int) $USER->id,
-                );
+            // Evaluate the customfield settings, and gather the data to send
+            // as the customfield values.
+            $customfieldvalues = [];
+            if ($credentials->customfields->has_mappings()) {
+                $discovery = $api->get_custom_fields();
+                if ($discovery->is_err()) {
+                    throw new moodle_exception('error:customfieldconfiguration', 'paygw_payway');
+                }
+                $values = $credentials->customfields->get_transaction_values((int)$USER->id, $discovery->unwrap());
+                if ($values->is_err()) {
+                    throw new moodle_exception('misconfiguration', 'paygw_payway', '', $values->error);
+                }
+                $customfieldvalues = $values->unwrap();
             }
+            $res = $api->process_payment(
+                singleusetoken: $token,
+                idempotencykey: $idempotencykey,
+                price: (float) $payable->get_amount(),
+                // This can be anything, it's for our reference only.
+                customernumber: (int) $USER->id,
+                customfields: $customfieldvalues,
+            );
             // Not succesful here means network or other connection error,
             // NOT a failed payment (e.g. declined card).
             if (!$res->is_success()) {
@@ -269,49 +283,6 @@ class process_payment extends external_api {
         } finally {
             $lock->release();
         }
-    }
-
-    /**
-     * Return the next configured mock response for Behat, if one is configured.
-     *
-     * @param string $token PayWay single-use token
-     * @param string $idempotencykey PayWay idempotency key
-     * @return api_response
-     */
-    private static function get_behat_mock_payment_response(string $token, string $idempotencykey): api_response {
-        // Some Behat payment flows may not configure an explicit response sequence.
-        // Default them to an approved response instead of passing false to json_decode().
-        $mocksequence = get_config('paygw_payway', 'behat_mock_payment_response_sequence') ?: '["approved"]';
-        $sequence = json_decode($mocksequence, true, flags: JSON_THROW_ON_ERROR);
-        $mockstatus = array_shift($sequence);
-        set_config('behat_mock_payment_response_sequence', json_encode($sequence), 'paygw_payway');
-        $attempts = json_decode(get_config('paygw_payway', 'behat_payment_attempts') ?: '[]', true);
-        $attempts[] = ['token' => $token, 'idempotencykey' => $idempotencykey];
-        set_config('behat_payment_attempts', json_encode($attempts), 'paygw_payway');
-
-        $paymentbody = json_encode([
-            'transactionId' => 123,
-            'receiptNumber' => 456,
-            'status' => in_array($mockstatus, ['approved', 'approved*', 'pending', 'declined', 'voided', 'suspended'])
-                ? $mockstatus : 'declined',
-            'responseCode' => '08',
-            'responseText' => 'Mock PayWay response',
-        ], JSON_THROW_ON_ERROR);
-        $mockhttpcode = match ($mockstatus) {
-            'retry' => 503,
-            'invalid' => 422,
-            'servererror' => 500,
-            'networkerror' => 0,
-            'responseerror' => 201,
-            default => 201,
-        };
-
-        return new api_response(
-            $mockhttpcode,
-            $mockstatus === 'responseerror' ? '{"unexpected":"response"}' :
-                ($mockhttpcode === 201 ? $paymentbody : '{}'),
-            $mockstatus === 'networkerror' ? 28 : 0,
-        );
     }
 
     /**
