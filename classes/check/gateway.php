@@ -89,6 +89,15 @@ class gateway extends check {
                     $statuscode = $this->gatewayenabled ? result::ERROR : result::WARNING;
                     return new result($statuscode, $keyvalidation->error);
                 }
+                // Credentials ok, now check customfields exist.
+                $fields = $api->get_custom_fields();
+                $mappingerrors = $fields->is_err()
+                    ? [$fields->error]
+                    : $credential->customfields->validate($fields->unwrap());
+                if ($mappingerrors) {
+                    $statuscode = $this->gatewayenabled ? result::ERROR : result::WARNING;
+                    return new result($statuscode, implode(' ', $mappingerrors));
+                }
 
                 $statuscode = result::OK;
                 $message = get_string('connectiontest', 'paygw_payway', ['status' => 200, 'keyname' => $keyname]);

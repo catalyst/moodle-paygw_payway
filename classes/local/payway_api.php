@@ -97,19 +97,49 @@ class payway_api {
     }
 
     /**
+     * Discover the facility's custom fields
+     * @return result<array> Field definitions, or a error string.
+     */
+    public function get_custom_fields(): result {
+        $response = $this->secret_authorized_request('GET', self::API_BASE_URL . '/custom-fields');
+        if ($response->curlerrno !== 0 || $response->httpcode !== 200) {
+            return result::err(get_string('customfieldsunavailable', 'paygw_payway'));
+        }
+        $body = json_decode($response->body, true);
+        if (!is_array($body) || !isset($body['data']) || !is_array($body['data'])) {
+            return result::err(get_string('customfieldsunavailable', 'paygw_payway'));
+        }
+        $fields = [];
+        foreach ($body['data'] as $field) {
+            if (
+                !is_array($field) || !isset($field['customFieldId'], $field['fieldName']) ||
+                !is_int($field['customFieldId']) || $field['customFieldId'] < 1 || $field['customFieldId'] > 4 ||
+                !is_string($field['fieldName']) || isset($fields[$field['customFieldId']])
+            ) {
+                return result::err(get_string('customfieldsunavailable', 'paygw_payway'));
+            }
+            $fields[$field['customFieldId']] = $field;
+        }
+        ksort($fields);
+        return result::ok($fields);
+    }
+
+    /**
      * Call the PayWay API to process a payment for the configured credentials, and price.
      *
      * @param string $singleusetoken Token returned by payway.js identifying the card being charged
      * @param string $idempotencykey UUID used to avoid duplicate charges
      * @param float $price the amount to charge the user. Note this is always in AUD.
-     * @param int $customernumber
+    * @param int $customernumber Customer reference.
+    * @param array $customfields Resolved customField1..4 transaction parameters.
      * @return api_response
      */
     public function process_payment(
         string $singleusetoken,
         string $idempotencykey,
         float $price,
-        int $customernumber
+        int $customernumber,
+        array $customfields = []
     ): api_response {
         // See PayWay's transaction request fields and duplicate-payment guidance.
         // See https://www.payway.com.au/docs/rest.html#resources-transactions.
@@ -124,6 +154,9 @@ class payway_api {
             // 3DSecure fraud detection is not supported by this plugin.
             'threeDS2' => false,
         ];
+
+        // Values are resolved by the caller. Never override fixed payment parameters.
+        $params += $customfields;
 
         $remoteip = getremoteaddr(null);
         // PayWay recommends customerIpAddress for cardholder-initiated payments.
@@ -163,6 +196,13 @@ class payway_api {
         int $timeout = self::DEFAULT_TIMEOUT,
         array $headers = []
     ): api_response {
+        if (defined('BEHAT_SITE_RUNNING') && !get_config('paygw_payway', 'behat_use_real_payment_api')) {
+            $response = $this->get_behat_mock_response($method, $url, $params, $headers);
+            if ($response !== null) {
+                return $response;
+            }
+        }
+
         $curl = new curl();
         $options = $this->prepare_secret_authorization_curl_options() + $this->prepare_timeout_curl_options($timeout);
         if (!empty($headers)) {
@@ -175,6 +215,88 @@ class payway_api {
             httpcode: (int) ($info['http_code'] ?? 0),
             body: (string) $body,
             curlerrno: (int) $curl->get_errno(),
+        );
+    }
+
+    /**
+     * Route supported requests to their configured Behat mock responses.
+     *
+     * Called only when the Behat site is running with the real payment API disabled.
+     * Return null for requests that should use the normal HTTP transport.
+     *
+     * @param string $method HTTP method
+     * @param string $url Request URL
+     * @param array $params Request parameters
+     * @param array $headers Request headers
+     * @return api_response|null Mock response, or null if the request is not mocked
+     */
+    private function get_behat_mock_response(string $method, string $url, array $params, array $headers): ?api_response {
+        $method = strtoupper($method);
+        if ($method === 'GET' && $url === self::API_BASE_URL . '/custom-fields') {
+            if (get_config('paygw_payway', 'behat_custom_fields_unavailable')) {
+                return new api_response(503, '{}', 0);
+            }
+            return new api_response(
+                200,
+                get_config('paygw_payway', 'behat_custom_fields') ?: '{"data":[]}',
+                0,
+            );
+        }
+        if ($method === 'POST' && $url === self::API_BASE_URL . '/transactions') {
+            return $this->get_behat_mock_payment_response($params, $headers);
+        }
+        return null;
+    }
+
+    /**
+     * Return the next configured mock response for Behat, if one is configured.
+     *
+     * @param array $params Transaction request parameters
+     * @param array $headers Transaction request headers
+     * @return api_response
+     */
+    private function get_behat_mock_payment_response(array $params, array $headers): api_response {
+        $token = $params['singleUseTokenId'];
+        $idempotencykey = '';
+        foreach ($headers as $header) {
+            if (str_starts_with($header, 'Idempotency-Key:')) {
+                $idempotencykey = trim(substr($header, strlen('Idempotency-Key:')));
+                break;
+            }
+        }
+
+        // Some Behat payment flows may not configure an explicit response sequence.
+        // Default them to an approved response instead of passing false to json_decode().
+        $mocksequence = get_config('paygw_payway', 'behat_mock_payment_response_sequence') ?: '["approved"]';
+        $sequence = json_decode($mocksequence, true, flags: JSON_THROW_ON_ERROR);
+        $mockstatus = array_shift($sequence);
+        set_config('behat_mock_payment_response_sequence', json_encode($sequence), 'paygw_payway');
+        $attempts = json_decode(get_config('paygw_payway', 'behat_payment_attempts') ?: '[]', true);
+        $attempts[] = ['token' => $token, 'idempotencykey' => $idempotencykey, 'params' => $params];
+        set_config('behat_payment_attempts', json_encode($attempts), 'paygw_payway');
+
+        $paymentbody = json_encode([
+            'transactionId' => 123,
+            'receiptNumber' => 456,
+            'status' => in_array($mockstatus, ['approved', 'approved*', 'pending', 'declined', 'voided', 'suspended'])
+                ? $mockstatus : 'declined',
+            'responseCode' => '08',
+            'responseText' => 'Mock PayWay response',
+        ], JSON_THROW_ON_ERROR);
+        $mockhttpcode = match ($mockstatus) {
+            'retry' => 503,
+            'invalid' => 422,
+            'servererror' => 500,
+            'networkerror' => 0,
+            'responseerror' => 201,
+            default => 201,
+        };
+
+        return new api_response(
+            $mockhttpcode,
+            $mockstatus === 'responseerror' ? '{"unexpected":"response"}' :
+                ($mockhttpcode === 201 ? $paymentbody : '{}'),
+            $mockstatus === 'networkerror' ? 28 : 0,
         );
     }
 

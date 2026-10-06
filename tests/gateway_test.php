@@ -165,4 +165,69 @@ final class gateway_test extends advanced_testcase {
         $this->assertArrayHasKey('secretkey', $errors);
         $this->assertArrayHasKey('publishablekey', $errors);
     }
+
+    /**
+     * A stale mapping prevents saving until explicitly cleared.
+     */
+    public function test_validate_gateway_form_checks_remote_mappings(): void {
+        $this->resetAfterTest();
+        $data = (object)[
+            'environment' => environment::Sandbox->value, 'merchantid' => 'TEST',
+            'secretkey' => 'APPLICATION_SEC_xyzabc', 'publishablekey' => 'APPLICATION_PUB_uvwxyz',
+            'customfieldmappings' => (object)[
+                hash('sha256', 'Email') => (object)['name' => 'Email', 'source' => 'user:email'],
+            ],
+        ];
+        \curl::mock_response('{"data":[]}');
+        $errors = [];
+        gateway::validate_gateway_form($this->get_stub_form(), $data, [], $errors);
+        $this->assertSame([
+            'customfieldsnotice' => get_string('customfieldremoved', 'paygw_payway', 'Email'),
+        ], $errors);
+        $data->customfieldmappings->{hash('sha256', 'Email')}->source = '';
+        $errors = [];
+        gateway::validate_gateway_form($this->get_stub_form(), $data, [], $errors);
+        $this->assertSame([], $errors);
+    }
+
+    /**
+     * Malformed mappings are associated with the correct form element.
+     */
+    public function test_validate_gateway_form_rejects_malformed_mapping(): void {
+        $data = (object)[
+            'environment' => environment::Sandbox->value, 'merchantid' => 'TEST',
+            'secretkey' => 'APPLICATION_SEC_xyzabc', 'publishablekey' => 'APPLICATION_PUB_uvwxyz',
+            'customfieldmappings' => (object)[
+                hash('sha256', 'Email') => ['name' => 'Email', 'source' => ['user:email']],
+            ],
+        ];
+        $errors = [];
+        gateway::validate_gateway_form($this->get_stub_form(), $data, [], $errors);
+        $this->assertSame([
+            'customfieldsnotice' => get_string('customfieldmappinginvalid', 'paygw_payway'),
+        ], $errors);
+    }
+
+    /**
+     * The status check reports a missing remote field, with severity based on enabled state.
+     */
+    public function test_gateway_check_detects_removed_field(): void {
+        $this->resetAfterTest();
+        $config = json_encode([
+            'environment' => environment::Sandbox->value, 'merchantid' => 'TEST',
+            'secretkey' => 'APPLICATION_SEC_xyzabc', 'publishablekey' => 'APPLICATION_PUB_uvwxyz',
+            'customfieldmappings' => (object)[
+                hash('sha256', 'Email') => ['name' => 'Email', 'source' => 'user:email'],
+            ],
+        ]);
+        foreach ([true, false] as $enabled) {
+            // Moodle's mock curl responses are consumed last-in-first-out.
+            \curl::mock_response('{"data":[]}');
+            \curl::mock_response('{}');
+            $check = new \paygw_payway\check\gateway(1, $enabled, $config);
+            $result = $check->get_result();
+            $this->assertSame($enabled ? \core\check\result::ERROR : \core\check\result::WARNING, $result->get_status());
+            $this->assertSame(get_string('customfieldremoved', 'paygw_payway', 'Email'), $result->get_summary());
+        }
+    }
 }

@@ -138,6 +138,7 @@ class check_token_renewal_adhoc extends adhoc_task {
                 environment: $configuration->environment,
                 merchantid: $configuration->merchantid,
                 notificationemail: null, // Purposely skip email for this test.
+                customfields: $configuration->customfields,
             );
             $newapi = $this->create_api($newconfig);
             $keyvalidation = $newapi->test_is_secret_key_valid();

@@ -26,15 +26,37 @@ use core_payment\privacy\paygw_provider;
  * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider implements \core_privacy\local\metadata\null_provider, paygw_provider {
+class provider implements
+    \core_privacy\local\metadata\provider,
+    \core_privacy\local\metadata\null_provider,
+    paygw_provider {
     /**
-     * Get the language string identifier with the component's language
-     * file to explain why this plugin stores no data.
+     * Explain why the gateway has no locally stored user data to export or delete.
      *
-     * @return  string
+     * External transfers are still described by get_metadata(). Core payment
+     * handles the payment records, while this gateway stores no additional data.
+     *
+     * @return string Language string identifier.
      */
     public static function get_reason(): string {
         return 'privacy:metadata';
+    }
+
+    /**
+     * Describe personal data sent to the payment provider.
+     *
+     * @param \core_privacy\local\metadata\collection $collection Metadata collection.
+     * @return \core_privacy\local\metadata\collection
+     */
+    public static function get_metadata(
+        \core_privacy\local\metadata\collection $collection
+    ): \core_privacy\local\metadata\collection {
+        $collection->add_external_location_link('payway', [
+            'userid' => 'privacy:metadata:payway:userid',
+            'ipaddress' => 'privacy:metadata:payway:ipaddress',
+            'customfields' => 'privacy:metadata:payway:customfields',
+        ], 'privacy:metadata:payway');
+        return $collection;
     }
 
     /**
