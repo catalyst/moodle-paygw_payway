@@ -62,7 +62,7 @@ class payway_api {
      * @param int $timeout Request timeout in seconds.
      * @return api_response HTTP response details.
      */
-    public function get_base_url(int $timeout = self::DEFAULT_TIMEOUT): api_response {
+    public function request_base_url_get(int $timeout = self::DEFAULT_TIMEOUT): api_response {
         return $this->secret_authorized_request('GET', self::API_BASE_URL, [], $timeout);
     }
 
@@ -76,7 +76,7 @@ class payway_api {
      * @return result<bool> True on success, otherwise a descriptive error.
      */
     public function test_is_secret_key_valid(int $timeout = self::DEFAULT_TIMEOUT): result {
-        $response = $this->get_base_url($timeout);
+        $response = $this->request_base_url_get($timeout);
         if ($response->curlerrno === 0 && $response->httpcode === 200) {
             return result::ok(true);
         }
