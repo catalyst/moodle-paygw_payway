@@ -1,7 +1,8 @@
-# moodle-paygw_payway
-Moodle payment gateway plugin for Westpac PayWay
-
 **This plugin is currently under construction!**
+---
+
+# moodle-paygw_payway
+Moodle payment gateway plugin for [Westpac PayWay](https://www.payway.com.au)
 
 # Feature support
 ## Supported
@@ -14,7 +15,29 @@ Moodle payment gateway plugin for Westpac PayWay
 - Refunds
 - Bank account payments
 
-# Important
+# Branches
+
+| Branch              | Moodle Version |
+|---------------------|----------------|
+| `MOODLE_405_STABLE` | Moodle 4.5+    |
+
+# Configuration
+
+Once installed, the plugin will appear as a Payment gateway in Moodle:
+
+![Gateway List](./pix/gateway-list.png)
+
+Then payment accounts can be configured with PayWay as a gateway:
+
+![Account configuration](./pix/account-config.png)
+
+Each configuration option has relevant help text that explains what the purpose is any useful setup information.
+
+Custom fields must be configured in the PayWay interface first, and then the plugin will automatically detect them and allow you to link them to corresponding Moodle fields.
+
+Once configured and enabled, the account can be used anywhere Payment gateways/accounts are integrated into, for example `enrol_fee`.
+
+## Important
 This plugin processes credit/debit card payments in conjunction with Westpac PayWay. It is important to note what this plugin will do when certain statuses are returned. [See the full list of statuses in the PayWay API Documentation](https://www.payway.com.au/docs/rest.html#transaction-status).
 
 While most credit/debit card payments will return either `approved` or `declined`, it is technically possible to return other statuses. Most of these statuses usually occur when processing bank account payments (which are not supported), however, in the case of any of these statuses are encountered, the plugin will handle them as follows:
@@ -40,3 +63,10 @@ PAYGW_PAYWAY_TEST_PUBLISHABLE_KEY=xxxx \
 PAYGW_PAYWAY_TEST_SECRET_KEY=yyyy \
 php admin/tool/behat/cli/run.php --tags="@paygw_payway" --profile=chrome
 ```
+
+# Support
+
+If you have issues please log them in GitHub.
+
+Please note our time is limited, so if you need urgent support or want to sponsor a new feature then please contact [Catalyst IT Australia](https://www.catalyst-au.net/contact-us).
+
