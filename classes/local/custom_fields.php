@@ -104,6 +104,15 @@ class custom_fields {
     }
 
     /**
+     * Generate empty custom fields object with no mappings.
+     *
+     * @return custom_fields
+     */
+    public static function from_empty(): custom_fields {
+        return new custom_fields([]);
+    }
+
+    /**
      * Stable HTML-safe identifier for a field - use in mForms.
      *
      * @param string $name Exact PayWay field name.

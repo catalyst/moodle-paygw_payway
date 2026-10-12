@@ -93,4 +93,15 @@ final class result {
         }
         return $this->value;
     }
+
+    /**
+     * Get the ok value, else return default value given.
+     * @return T
+     */
+    public function unwrap_or(mixed $default): mixed {
+        if  ($this->is_ok()) {
+            return $this->value;
+        }
+        return $default;
+    }
 }
