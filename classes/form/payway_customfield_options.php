@@ -39,13 +39,11 @@ class payway_customfield_options {
     public static function add_to_form(account_gateway $form): void {
         // This is a bit bleh, but necessary,
         // we need to extract the gateway from the form, to lookup the credentials, in order to query the customfields in PayWay.
+        // Parse customfield config if there is any,
+        // else just use an empty customfields object (usually this is first time gateway creation).
         $mform = $form->get_mform();
-        $config = json_decode($form->get_gateway_persistent()->get('config') ?: '{}');
-
-        // Parse customfield config.
-        $mappingresult = custom_fields::validate_and_parse_stored_config($config ?? (object)[]);
-        $customfields = $mappingresult->is_ok() ? $mappingresult->unwrap() : custom_fields::from_stored_config(new \stdClass());
-        $mappings = $customfields->mappings;
+        $config = json_decode($form->get_gateway_persistent()->get('config') ?: '{}') ?? (object)[];
+        $mappings = custom_fields::validate_and_parse_stored_config($config)->unwrap_or(custom_fields::from_empty())->mappings;
         $mform->addElement('header', 'customfieldsheader', get_string('customfields', 'paygw_payway'));
 
         // Get fields from API.
