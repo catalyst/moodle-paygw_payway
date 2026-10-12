@@ -40,7 +40,7 @@ class api_configuration {
      * @param environment $environment the environment
      * @param string $merchantid the merchant id
      * @param string|null $notificationemail email address for payment notifications, if configured
-    * @param custom_fields $customfields parsed custom-field mappings
+     * @param custom_fields $customfields parsed custom-field mappings
      */
     public function __construct(
         /** @var string $publishablekey the public key */

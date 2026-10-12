@@ -130,8 +130,8 @@ class payway_api {
      * @param string $singleusetoken Token returned by payway.js identifying the card being charged
      * @param string $idempotencykey UUID used to avoid duplicate charges
      * @param float $price the amount to charge the user. Note this is always in AUD.
-    * @param int $customernumber Customer reference.
-    * @param array $customfields Resolved customField1..4 transaction parameters.
+     * @param int $customernumber Customer reference.
+     * @param array $customfields Resolved customField1..4 transaction parameters.
      * @return api_response
      */
     public function process_payment(

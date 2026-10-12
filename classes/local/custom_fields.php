@@ -177,7 +177,7 @@ class custom_fields {
     /**
      * Format the data into the format expected for sending in a transaction
      *
-     * Important: When creating a transaction, PayWay expects an array with keys of fieldIds - 
+     * Important: When creating a transaction, PayWay expects an array with keys of fieldIds -
      * these fieldIds are simply the numbers 1,2,3,4 and are not actual ids but are instead better thought of as "slots".
      * We do not ever store the PayWay fieldId as they may be reordered in the PayWay frontend which would cause the data
      * to be linked to the wrong field on the Moodle side.
