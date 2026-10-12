@@ -244,7 +244,7 @@ final class payway_api_test extends advanced_testcase {
     }
 
     /**
-        * Custom data must never override fixed payment parameters.
+     * Custom data must never override fixed payment parameters.
      */
     public function test_custom_fields_cannot_override_payment_parameters(): void {
         $api = $this->getMockBuilder(payway_api::class)
@@ -285,7 +285,7 @@ final class payway_api_test extends advanced_testcase {
     }
 
     /**
-        * Empty resolved values produce no additional payload fields or discovery requests.
+     * Empty resolved values produce no additional payload fields or discovery requests.
      */
     public function test_payment_without_custom_field_mappings(): void {
         $api = $this->getMockBuilder(payway_api::class)

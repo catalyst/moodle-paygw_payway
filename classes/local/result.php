@@ -96,10 +96,12 @@ final class result {
 
     /**
      * Get the ok value, else return default value given.
+     *
+     * @param mixed $default the default value to return
      * @return T
      */
     public function unwrap_or(mixed $default): mixed {
-        if  ($this->is_ok()) {
+        if ($this->is_ok()) {
             return $this->value;
         }
         return $default;

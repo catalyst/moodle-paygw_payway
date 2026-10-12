@@ -26,10 +26,7 @@ use core_payment\privacy\paygw_provider;
  * @author     Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider implements
-    \core_privacy\local\metadata\provider,
-    \core_privacy\local\metadata\null_provider,
-    paygw_provider {
+class provider implements \core_privacy\local\metadata\null_provider, \core_privacy\local\metadata\provider, paygw_provider {
     /**
      * Explain why the gateway has no locally stored user data to export or delete.
      *
