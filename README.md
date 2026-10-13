@@ -57,7 +57,7 @@ While most credit/debit card payments will return either `approved` or `declined
 Unusual statuses will notify the configured gateway's `notificationemail` email for manual review. **This plugin only checks the status at the moment of payment** - meaning asynchronous statuses such as `approved*` and `pending` are not able to be automatically handled - this is a limitation of the Moodle payment gateway API. The intention is that you will manually reconcile these after receiving a notification from the plugin.
 
 ## Events
-The `\\paygw_payway\\event\\payway_payment` event is triggered for every valid transaction response returned by PayWay, including declined and unusual statuses. Its `other` data includes the PayWay `status`, transaction and receipt identifiers, and the Moodle component, payment area, and item ID.
+The `\paygw_payway\event\payway_payment` event is triggered for every valid transaction response returned by PayWay, including declined and unusual statuses. Its `other` data includes the PayWay `status`, transaction and receipt identifiers, and the Moodle component, payment area, and item ID.
 
 # Testing
 This plugin is covered by both phpunit and behat tests.
