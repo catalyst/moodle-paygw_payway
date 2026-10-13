@@ -203,6 +203,9 @@ class payway_api {
             }
         }
 
+        global $CFG;
+        // Required for curl class.
+        require_once($CFG->libdir . '/filelib.php');
         $curl = new curl();
         $options = $this->prepare_secret_authorization_curl_options() + $this->prepare_timeout_curl_options($timeout);
         if (!empty($headers)) {
