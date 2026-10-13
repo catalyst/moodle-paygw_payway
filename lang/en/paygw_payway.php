@@ -68,6 +68,7 @@ $string['error:customfieldconfiguration'] = 'The PayWay custom field configurati
 $string['error:environment'] = 'Environment value was not valid';
 $string['error:invalidkey'] = 'Invalid key format: {$a}';
 $string['error:paymentsetupfailed'] = 'Unable to load the credit card payment form. Please try again.';
+$string['error:unsupportedcurrency'] = 'PayWay only supports AUD payments. The requested currency is {$a}; please contact the site administrator.';
 $string['eventpaywaypayment'] = 'PayWay payment response received';
 $string['failedpayment'] = 'Payment could not be completed. Please check your details or try another card.';
 $string['gatewaydescription'] = 'Pay using your credit card using Westpac PayWay';

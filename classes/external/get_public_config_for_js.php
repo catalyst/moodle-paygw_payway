@@ -82,6 +82,8 @@ class get_public_config_for_js extends external_api {
             'payway'
         ));
         $payable = helper::get_payable($component, $paymentarea, $itemid);
+        // Avoid showing a PayWay form for a payable that cannot be charged in its currency.
+        \paygw_payway\gateway::validate_currency($payable->get_currency());
         $surcharge = helper::get_gateway_surcharge('payway');
 
         return [
