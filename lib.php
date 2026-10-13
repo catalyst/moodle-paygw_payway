@@ -36,7 +36,7 @@ function paygw_payway_status_checks(): array {
 
     // There are likely to be only a handful of gateways on a given site,
     // so its ok to query them all at once here.
-    $gateways = $DB->get_records('payment_gateways', ['gateway' => 'payway'], 'id, enabled, config');
+    $gateways = $DB->get_records('payment_gateways', ['gateway' => 'payway'], 'id', 'id, enabled, config');
     $checks = array_map(function ($gateway) {
         return new gateway($gateway->id, $gateway->enabled, $gateway->config);
     }, $gateways);
