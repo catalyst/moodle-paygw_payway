@@ -1,8 +1,7 @@
-**This plugin is currently under construction!**
----
-
 # moodle-paygw_payway
 Moodle payment gateway plugin for [Westpac PayWay](https://www.payway.com.au)
+
+Allow users to pay via Credit and Debit card in Australia via the Westpac PayWay service.
 
 # Feature support
 ## Supported
@@ -17,17 +16,22 @@ Moodle payment gateway plugin for [Westpac PayWay](https://www.payway.com.au)
 
 # Branches
 
-| Branch              | Moodle Version |
-|---------------------|----------------|
-| `MOODLE_405_STABLE` | Moodle 4.5+    |
+| Branch              | Moodle Version   |
+|---------------------|------------------|
+| `MOODLE_405_STABLE` | Moodle 4.5 - 5.3 |
 
 # Configuration
+
+## Payway
+This plugin requires an external [Westpac PayWay](https://www.payway.com.au) account. You can test it using the [free sandbox test facility](https://www.payway.com.au/sandbox).
 
 Once installed, the plugin will appear as a Payment gateway in Moodle:
 
 ![Gateway List](./pix/gateway-list.png)
 
-Then payment accounts can be configured with PayWay as a gateway:
+Then payment accounts can be configured with PayWay as a gateway.
+
+Here you enter your details provided by PayWay accordingly:
 
 ![Account configuration](./pix/account-config.png)
 
@@ -35,10 +39,14 @@ Each configuration option has relevant help text that explains what the purpose 
 
 Custom fields must be configured in the PayWay interface first, and then the plugin will automatically detect them and allow you to link them to corresponding Moodle fields.
 
-Once configured and enabled, the account can be used anywhere Payment gateways/accounts are integrated into, for example `enrol_fee`.
+Once configured and enabled, the account can be used anywhere Payment gateways/accounts are integrated into, for example `enrol_fee`:
+
+![Select payway](./pix/select-payway.png)
+![Payment screen](./pix/payment-screen.png)
+![Payment successful](./pix/payment-successful.png)
 
 ## Security considerations
-The payment form loads `payway.js` from PayWay's official HTTPS endpoint. PayWay's [documentation](https://www.payway.com.au/docs/rest.html#paywayjs) explicitly says not to host this library locally, and its [API versioning policy](https://www.payway.com.au/docs/rest.html#versioning-and-base-url) allows backward-compatible changes to the script without a major version change. A fixed Subresource Integrity hash would therefore become stale and could prevent payments from loading. The plugin uses the fixed PayWay origin and accepts the provider-managed script updates; administrators should review PayWay integration/security notices as part of routine maintenance.
+We purposely do not pin the version of `payway.js` that is loaded. The payment form loads `payway.js` from PayWay's official HTTPS endpoint. PayWay's [documentation](https://www.payway.com.au/docs/rest.html#paywayjs) explicitly says not to host this library locally, and its [API versioning policy](https://www.payway.com.au/docs/rest.html#versioning-and-base-url) allows backward-compatible changes to the script without a major version change.
 
 ## Important
 This plugin processes credit/debit card payments in conjunction with Westpac PayWay. It is important to note what this plugin will do when certain statuses are returned. [See the full list of statuses in the PayWay API Documentation](https://www.payway.com.au/docs/rest.html#transaction-status).
