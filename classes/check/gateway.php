@@ -19,7 +19,6 @@ namespace paygw_payway\check;
 use action_link;
 use core\check\check;
 use core\check\result;
-use invalid_parameter_exception;
 use moodle_url;
 use paygw_payway\local\api_configuration;
 use paygw_payway\local\payway_api;

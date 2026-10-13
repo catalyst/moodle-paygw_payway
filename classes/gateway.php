@@ -21,7 +21,6 @@ use paygw_payway\local\environment;
 use coding_exception;
 use core\url;
 use html_writer;
-use ValueError;
 
 /**
  * Contains class for PayWay payment gateway.
