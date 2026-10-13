@@ -46,6 +46,7 @@ final class unexpected_status_email_test extends advanced_testcase {
             'email' => 'customer@example.com',
         ]);
         $payment = new payment(123456, 987654, $status, '08', 'Manual review needed');
+        $noreplyemail = \core_user::get_noreply_user()->email;
         $sink = $this->redirectEmails();
 
         $this->assertTrue(unexpected_status_email::send(
@@ -60,7 +61,8 @@ final class unexpected_status_email_test extends advanced_testcase {
         $this->assertSame(1, $sink->count());
         $mail = $sink->get_messages()[0];
         $this->assertSame('notifications@example.com', $mail->to);
-        $this->assertSame(\core_user::get_noreply_user()->email, $mail->from);
+        $this->assertSame($noreplyemail, $mail->from);
+        $this->assertSame($noreplyemail, \core_user::get_noreply_user()->email);
         $this->assertSame(get_string('email:unexpectedstatus:subject', 'paygw_payway', 123456), $mail->subject);
 
         $body = quoted_printable_decode($mail->body);
