@@ -69,7 +69,12 @@ class custom_fields {
     private static function get_standard_fields(): array {
         global $CFG, $DB;
         require_once($CFG->dirroot . '/user/lib.php');
-        return array_values(array_intersect(user_get_default_fields(), array_keys($DB->get_columns('user'))));
+        // Moodle 5.3 moved this API to core\user; retain compatibility with Moodle 4.5.
+        // method_exists() autoloads core\user without calling the deprecated function.
+        $defaultfields = method_exists(\core\user::class, 'get_default_fields')
+            ? call_user_func([\core\user::class, 'get_default_fields'])
+            : user_get_default_fields();
+        return array_values(array_intersect($defaultfields, array_keys($DB->get_columns('user'))));
     }
 
     /**
