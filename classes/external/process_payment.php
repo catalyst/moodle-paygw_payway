@@ -108,6 +108,8 @@ class process_payment extends external_api {
             'payway'
         ));
         $payable = payment_helper::get_payable($component, $paymentarea, $itemid);
+        // Never send a non-AUD payable to PayWay, which always processes transactions in AUD.
+        \paygw_payway\gateway::validate_currency($payable->get_currency());
         $api = payway_api::new($credentials);
         $notifyprocessingerror = function (string $intro, array $details)
  use ($credentials, $USER, $component, $paymentarea, $itemid): void {

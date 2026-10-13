@@ -46,6 +46,18 @@ final class gateway_test extends advanced_testcase {
     }
 
     /**
+     * PayWay accepts AUD and rejects a different payable currency.
+     */
+    public function test_validate_currency(): void {
+        gateway::validate_currency('AUD');
+        gateway::validate_currency('aud');
+
+        $this->expectException(\moodle_exception::class);
+        $this->expectExceptionMessage(get_string('error:unsupportedcurrency', 'paygw_payway', 'USD'));
+        gateway::validate_currency('USD');
+    }
+
+    /**
      * Get a stub form instance - validate_gateway_form does not use it directly, only its type.
      *
      * @return account_gateway

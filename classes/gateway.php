@@ -56,6 +56,19 @@ class gateway extends \core_payment\gateway {
     }
 
     /**
+     * Ensure a payable uses a currency supported by PayWay.
+     *
+     * @param string $currency Currency requested for the payment.
+     * @return void
+     * @throws \moodle_exception If the currency is not supported.
+     */
+    public static function validate_currency(string $currency): void {
+        if (!in_array(strtoupper($currency), self::get_supported_currencies(), true)) {
+            throw new \moodle_exception('error:unsupportedcurrency', 'paygw_payway', '', $currency);
+        }
+    }
+
+    /**
      * Configuration form for the gateway instance
      *
      * Use $form->get_mform() to access the \MoodleQuickForm instance
