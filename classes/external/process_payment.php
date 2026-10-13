@@ -168,12 +168,6 @@ class process_payment extends external_api {
                     'PayWay payment request failed: ' . json_encode([
                         'httpcode' => $res->httpcode,
                         'curlerrno' => $res->curlerrno,
-                        'body' => $res->body,
-                        'component' => $component,
-                        'paymentarea' => $paymentarea,
-                        'itemid' => $itemid,
-                        'userid' => $USER->id,
-                        'idempotencykey' => $idempotencykey,
                     ]),
                     DEBUG_NORMAL,
                 );
@@ -213,7 +207,8 @@ class process_payment extends external_api {
             // See https://www.payway.com.au/docs/rest.html#transactions-model .
             $paymentresult = payment::try_parse($res->body);
             if ($paymentresult->is_err()) {
-                debugging('Unexpected PayWay payment response: ' . $res->body, DEBUG_NORMAL);
+                // Do not log the provider response body; it can contain personal or payment data.
+                debugging('Unexpected PayWay payment response (HTTP ' . $res->httpcode . ').', DEBUG_NORMAL);
                 $notifyprocessingerror(
                     get_string('email:responseerror:intro', 'paygw_payway'),
                     [
