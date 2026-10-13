@@ -19,7 +19,6 @@ namespace paygw_payway\task;
 use coding_exception;
 use core\task\adhoc_task;
 use core_payment\helper;
-use Override;
 use paygw_payway\local\api_key_response;
 use paygw_payway\local\api_configuration;
 use paygw_payway\local\payway_api;
