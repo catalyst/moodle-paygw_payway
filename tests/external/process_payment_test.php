@@ -17,8 +17,11 @@
 namespace paygw_payway\external;
 
 use advanced_testcase;
+use core_payment\helper as payment_helper;
 use invalid_parameter_exception;
 use moodle_exception;
+use paygw_payway\event\payway_payment as payway_payment_event;
+use paygw_payway\local\status;
 
 /**
  * Tests for the PayWay payment processing web service.
@@ -30,6 +33,100 @@ use moodle_exception;
  * @covers     \paygw_payway\external\process_payment
  */
 final class process_payment_test extends advanced_testcase {
+    /**
+     * A parsed PayWay response triggers one event carrying the returned status and payment context.
+     *
+     * @dataProvider payway_payment_event_provider
+     * @param status $status PayWay transaction status.
+     * @param bool $accepted Whether Moodle should deliver the order for this status.
+     */
+    public function test_payway_payment_event(status $status, bool $accepted): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        \core\plugininfo\paygw::enable_plugin('payway', 1);
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+
+        $account = payment_helper::save_payment_account((object) [
+            'name' => 'PayWay event test account',
+            'idnumber' => '',
+        ]);
+        payment_helper::save_payment_gateway((object) [
+            'accountid' => $account->get('id'),
+            'gateway' => 'payway',
+            'enabled' => 1,
+            'config' => json_encode([
+                'publishablekey' => 'APPLICATION_PUB_test',
+                'secretkey' => 'APPLICATION_SEC_test',
+                'environment' => 'sandbox',
+                'merchantid' => 'TEST',
+                'notificationemail' => '',
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+        $course = $this->getDataGenerator()->create_course();
+        $feeplugin = enrol_get_plugin('fee');
+        $enrolid = $feeplugin->add_instance($course, [
+            'courseid' => $course->id,
+            'customint1' => $account->get('id'),
+            'cost' => 10,
+            'currency' => 'AUD',
+            'roleid' => $DB->get_field('role', 'id', ['shortname' => 'student'], MUST_EXIST),
+        ]);
+
+        \curl::mock_response(json_encode([
+            'transactionId' => 123456,
+            'receiptNumber' => 987654,
+            'status' => $status->value,
+            'responseCode' => '08',
+            'responseText' => 'Test response',
+        ], JSON_THROW_ON_ERROR));
+
+        $sink = $this->redirectEvents();
+        $result = process_payment::execute(
+            'enrol_fee',
+            'fee',
+            $enrolid,
+            '2bcec36f-7b02-43db-b3ec-bfb65acfe272',
+            '2bcec36f-7b02-43db-b3ec-bfb65acfe273',
+        );
+        $events = array_values(array_filter(
+            $sink->get_events(),
+            fn($event): bool => $event instanceof payway_payment_event,
+        ));
+        $sink->close();
+
+        $this->assertSame($accepted ? 'ok' : 'error', $result['status']);
+        $this->assertCount(1, $events);
+        $event = reset($events);
+        // The event sink reads these IDs back from the database as strings.
+        $this->assertEquals($user->id, $event->userid);
+        $this->assertEquals(\context_system::instance()->id, $event->contextid);
+        $this->assertSame($status->value, $event->other['status']);
+        $this->assertSame(123456, $event->other['transactionid']);
+        $this->assertSame(987654, $event->other['receiptnumber']);
+        $this->assertSame('enrol_fee', $event->other['component']);
+        $this->assertSame('fee', $event->other['paymentarea']);
+        $this->assertSame($enrolid, $event->other['itemid']);
+    }
+
+    /**
+     * Provide provider statuses covering successful, pending, declined, and unusual responses.
+     *
+     * @return array<string, array{status, bool}>
+     */
+    public static function payway_payment_event_provider(): array {
+        return [
+            'approved' => [status::Approved, true],
+            'approved with warning' => [status::ApprovedAsterisk, true],
+            'pending' => [status::Pending, true],
+            'declined' => [status::Declined, false],
+            'voided' => [status::Voided, false],
+            'suspended' => [status::Suspended, false],
+        ];
+    }
+
     /**
      * Guests must not be able to submit a payment or receive an order.
      */

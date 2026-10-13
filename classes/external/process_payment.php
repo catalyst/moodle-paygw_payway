@@ -32,6 +32,7 @@ use paygw_payway\local\payment;
 use paygw_payway\local\payway_api;
 use paygw_payway\local\payment_processing_error_email;
 use paygw_payway\local\unexpected_status_email;
+use paygw_payway\event\payway_payment as payway_payment_event;
 
 /**
  * This class contains a list of webservice functions related to the PayWay payment gateway.
@@ -220,6 +221,15 @@ class process_payment extends external_api {
                 throw new coding_exception($paymentresult->error);
             }
             $payment = $paymentresult->unwrap();
+
+            // Record every valid provider status, including declines and statuses that need review.
+            payway_payment_event::create_from_payment(
+                $payment,
+                (int) $USER->id,
+                $component,
+                $paymentarea,
+                $itemid,
+            )->trigger();
 
             if ($payment->is_accepted()) {
                 try {
