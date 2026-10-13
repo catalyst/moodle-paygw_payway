@@ -68,7 +68,7 @@ class unexpected_status_email {
         $subject = get_string('email:unexpectedstatus:subject', 'paygw_payway', $payment->transactionid);
 
         // Notification address is not a Moodle user, so build a pseudo recipient.
-        $recipient = \core_user::get_noreply_user();
+        $recipient = clone \core_user::get_noreply_user();
         $recipient->email = $notificationemail;
         $recipient->mailformat = FORMAT_HTML;
 

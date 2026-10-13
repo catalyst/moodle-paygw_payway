@@ -39,6 +39,7 @@ final class payment_processing_error_email_test extends advanced_testcase {
             'lastname' => 'Customer',
             'email' => 'customer@example.com',
         ]);
+        $noreplyemail = \core_user::get_noreply_user()->email;
         $sink = $this->redirectEmails();
         $intro = get_string('email:networkerror:intro', 'paygw_payway');
 
@@ -55,6 +56,8 @@ final class payment_processing_error_email_test extends advanced_testcase {
         $this->assertSame(1, $sink->count());
         $mail = $sink->get_messages()[0];
         $this->assertSame('notifications@example.com', $mail->to);
+        $this->assertSame($noreplyemail, $mail->from);
+        $this->assertSame($noreplyemail, \core_user::get_noreply_user()->email);
         $this->assertSame(get_string('email:paymentprocessingerror:subject', 'paygw_payway'), $mail->subject);
         $body = quoted_printable_decode($mail->body);
         $this->assertStringContainsString($intro, $body);

@@ -66,7 +66,7 @@ final class payment_processing_error_email {
         $messagetext = html_to_text($messagehtml);
         $subject = get_string('email:paymentprocessingerror:subject', 'paygw_payway');
 
-        $recipient = \core_user::get_noreply_user();
+        $recipient = clone \core_user::get_noreply_user();
         $recipient->email = $notificationemail;
         $recipient->mailformat = FORMAT_HTML;
 
