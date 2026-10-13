@@ -23,7 +23,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+// Note - defined('MOODLE_INTERNAL') || die(); is not required for this file.
 
 use paygw_payway\check\gateway;
 
