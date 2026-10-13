@@ -40,7 +40,7 @@ class provider implements \core_privacy\local\metadata\null_provider, \core_priv
     }
 
     /**
-     * Describe personal data sent to the payment provider.
+    * Describe personal data sent to PayWay and the configured notification email address.
      *
      * @param \core_privacy\local\metadata\collection $collection Metadata collection.
      * @return \core_privacy\local\metadata\collection
@@ -53,6 +53,11 @@ class provider implements \core_privacy\local\metadata\null_provider, \core_priv
             'ipaddress' => 'privacy:metadata:payway:ipaddress',
             'customfields' => 'privacy:metadata:payway:customfields',
         ], 'privacy:metadata:payway');
+        $collection->add_external_location_link('notificationemail', [
+            'userdetails' => 'privacy:metadata:notificationemail:userdetails',
+            'paymentdetails' => 'privacy:metadata:notificationemail:paymentdetails',
+            'itemdetails' => 'privacy:metadata:notificationemail:itemdetails',
+        ], 'privacy:metadata:notificationemail');
         return $collection;
     }
 
