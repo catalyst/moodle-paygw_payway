@@ -84,7 +84,7 @@ class payment {
         // Try coerce status into enum.
         $statusenum = status::tryFrom($status);
         if ($statusenum === null) {
-            return result::err("Invalid status " . $status);
+            return result::err("Unexpected payment response from PayWay API");
         }
 
         return result::ok(new payment(

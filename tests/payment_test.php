@@ -74,6 +74,17 @@ final class payment_test extends advanced_testcase {
     }
 
     /**
+     * Do not include upstream-controlled status values in parser errors.
+     */
+    public function test_invalid_status_is_not_exposed_in_error(): void {
+        $sensitivevalue = 'customer-private-value';
+        $result = payment::try_parse($this->response_json($sensitivevalue));
+
+        $this->assertTrue($result->is_err());
+        $this->assertStringNotContainsString($sensitivevalue, $result->error);
+    }
+
+    /**
      * Provide malformed transaction response bodies.
      *
      * @return array<string, array{string}>
