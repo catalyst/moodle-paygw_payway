@@ -40,7 +40,7 @@ class provider implements \core_privacy\local\metadata\null_provider, \core_priv
     }
 
     /**
-    * Describe personal data sent to PayWay and the configured notification email address.
+     * Describe personal data sent to PayWay and the configured notification email address.
      *
      * @param \core_privacy\local\metadata\collection $collection Metadata collection.
      * @return \core_privacy\local\metadata\collection
