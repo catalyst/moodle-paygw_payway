@@ -37,6 +37,9 @@ Custom fields must be configured in the PayWay interface first, and then the plu
 
 Once configured and enabled, the account can be used anywhere Payment gateways/accounts are integrated into, for example `enrol_fee`.
 
+## Security considerations
+The payment form loads `payway.js` from PayWay's official HTTPS endpoint. PayWay's [documentation](https://www.payway.com.au/docs/rest.html#paywayjs) explicitly says not to host this library locally, and its [API versioning policy](https://www.payway.com.au/docs/rest.html#versioning-and-base-url) allows backward-compatible changes to the script without a major version change. A fixed Subresource Integrity hash would therefore become stale and could prevent payments from loading. The plugin uses the fixed PayWay origin and accepts the provider-managed script updates; administrators should review PayWay integration/security notices as part of routine maintenance.
+
 ## Important
 This plugin processes credit/debit card payments in conjunction with Westpac PayWay. It is important to note what this plugin will do when certain statuses are returned. [See the full list of statuses in the PayWay API Documentation](https://www.payway.com.au/docs/rest.html#transaction-status).
 
